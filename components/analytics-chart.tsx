@@ -32,7 +32,14 @@ interface AnalyticsChartProps {
   onSelectedIntegrationsChange?: (integrations: string[]) => void;
 }
 
-const COLORS = ['#2563eb', '#16a34a', '#ea580c', '#9333ea', '#0891b2'];
+// Purple gradient matching the theme
+const COLORS = [
+  '#8b5cf6', // Purple (chart-1)
+  '#a78bfa', // Light purple (chart-2)
+  '#c4b5fd', // Lighter purple (chart-3)
+  '#ddd6fe', // Very light purple (chart-4)
+  '#ede9fe', // Palest purple (chart-5)
+];
 
 export function AnalyticsChart({ 
   eventData, 
@@ -329,7 +336,36 @@ export function AnalyticsChart({
               />
               <ChartTooltip 
                 cursor={false}
-                content={<ChartTooltipContent indicator="dot" />} 
+                content={
+                  <ChartTooltipContent 
+                    indicator="dot"
+                    labelFormatter={(value, payload) => {
+                      if (!payload?.[0]?.payload?.timestamp) return value;
+                      const date = new Date(payload[0].payload.timestamp);
+                      return granularity === 'daily'
+                        ? date.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            timeZone: 'UTC'
+                          })
+                        : date.toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: 'UTC'
+                          });
+                    }}
+                    formatter={(value, name) => (
+                      <div className="flex items-center justify-between gap-4 w-full">
+                        <span className="text-muted-foreground">{name}</span>
+                        <span className="font-mono font-medium tabular-nums">{value.toLocaleString()}</span>
+                      </div>
+                    )}
+                  />
+                } 
               />
               <ChartLegend content={<ChartLegendContent />} />
               {selectedEvents.map((eventName, index) => {

@@ -105,8 +105,10 @@ export async function getTeamForUser() {
     return null;
   }
 
+  // Get the most recently joined team (or you could add logic to get a "primary" team)
   const result = await db.query.teamMembers.findFirst({
     where: eq(teamMembers.userId, user.id),
+    orderBy: (teamMembers, { desc }) => [desc(teamMembers.joinedAt)],
     with: {
       team: {
         with: {

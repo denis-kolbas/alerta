@@ -90,14 +90,14 @@ def query_metric_aggregates(metric_id, metric_name, hours_back=1):
     url = f'{KLAVIYO_API_BASE}/metric-aggregates'
     headers = get_headers()
     
-    # Calculate time range for yesterday (full day)
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday_start = today - timedelta(days=1)
-    yesterday_end = today
+    # Calculate time range - EXACTLY like the worker does
+    current_time = datetime.now(timezone.utc)
+    end_time = current_time.replace(minute=0, second=0, microsecond=0)
+    start_time = end_time - timedelta(hours=hours_back)
     
     # Format timestamps for Klaviyo API
-    start_str = yesterday_start.strftime('%Y-%m-%dT%H:%M:%S')
-    end_str = yesterday_end.strftime('%Y-%m-%dT%H:%M:%S')
+    start_str = start_time.strftime('%Y-%m-%dT%H:%M:%S')
+    end_str = end_time.strftime('%Y-%m-%dT%H:%M:%S')
     
     payload = {
         "data": {
@@ -109,7 +109,7 @@ def query_metric_aggregates(metric_id, metric_name, hours_back=1):
                     f"less-than(datetime,{end_str})"
                 ],
                 "metric_id": metric_id,
-                "interval": "day",
+                "interval": "hour",
                 "timezone": "UTC"
             }
         }
@@ -118,10 +118,12 @@ def query_metric_aggregates(metric_id, metric_name, hours_back=1):
     # Debug: print the request for first metric
     if not hasattr(query_metric_aggregates, '_printed_example'):
         print("\n" + "="*60)
-        print("EXAMPLE REQUEST BODY:")
+        print("EXAMPLE REQUEST (EXACTLY AS WORKER SENDS):")
         print("="*60)
-        print(f"URL: POST {url}")
-        print(f"Headers: {json.dumps(headers, indent=2)}")
+        print(f"Current time: {current_time.isoformat()}")
+        print(f"End time (rounded to hour): {end_time.isoformat()}")
+        print(f"Start time (end - {hours_back}h): {start_time.isoformat()}")
+        print(f"\nURL: POST {url}")
         print(f"Body: {json.dumps(payload, indent=2)}")
         print("="*60 + "\n")
         query_metric_aggregates._printed_example = True
@@ -192,12 +194,11 @@ def main():
     if len(metrics) > 10:
         print(f"  ... and {len(metrics) - 10} more")
     
-    # Step 2: Query aggregates for each metric (yesterday)
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday = today - timedelta(days=1)
-    print(f"\n2. Querying event counts for yesterday ({yesterday.strftime('%Y-%m-%d')})...")
+    # Step 2: Query aggregates for each metric (last 1 hour - like the worker)
+    print(f"\n2. Querying event counts for LAST 1 HOUR (as worker does)...")
     print(f"   Rate limit: {RATE_LIMIT_DELAY}s delay between requests (60 requests/min)")
     all_event_data = []
+    hours_returned_counts = []  # Track how many hours Klaviyo returns
     
     for i, metric in enumerate(metrics):
         metric_id = metric.get('id')
@@ -214,9 +215,11 @@ def main():
         if aggregate_data:
             events = process_aggregate_response(aggregate_data, metric_name)
             all_event_data.extend(events)
+            hours_returned_counts.append(len(events))
             
             total_count = sum(e['count'] for e in events)
-            print(f"✓ {total_count} events")
+            hours_info = f"({len(events)} hours)" if len(events) != 1 else "(1 hour)"
+            print(f"✓ {total_count} events {hours_info}")
         else:
             print("✗ Failed")
     
@@ -224,6 +227,17 @@ def main():
     print(f"\n3. Results Summary")
     print("=" * 60)
     print(f"Total event records: {len(all_event_data)}")
+    
+    # Analyze how many hours Klaviyo returned
+    if hours_returned_counts:
+        avg_hours = sum(hours_returned_counts) / len(hours_returned_counts)
+        max_hours = max(hours_returned_counts)
+        min_hours = min(hours_returned_counts)
+        print(f"\n⚠️  HOURS RETURNED BY KLAVIYO:")
+        print(f"   Min: {min_hours}, Max: {max_hours}, Avg: {avg_hours:.1f}")
+        if max_hours > 1:
+            print(f"   ❌ Klaviyo returned MORE than 1 hour for some metrics!")
+            print(f"   This explains why you see 2x the expected records.")
     
     # Group by metric and sum counts
     metric_totals = {}

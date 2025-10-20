@@ -1,37 +1,12 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { IntegrationCard } from '@/components/integration-card';
+import { IntegrationsSearch } from '@/components/integrations-search';
 import { getTeamForUser } from '@/lib/db/queries';
 import { db } from '@/lib/db/drizzle';
 import { clients } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { INTEGRATIONS } from '@/lib/integrations';
 
-const integrations = [
-  {
-    id: 'braze',
-    name: 'Braze',
-    description: 'Customer engagement platform for personalized messaging across channels',
-    logo: '🔥',
-    category: 'Marketing Automation',
-    href: '/dashboard/integrations/braze',
-  },
-  {
-    id: 'mixpanel',
-    name: 'Mixpanel',
-    description: 'Product analytics platform to understand user behavior and drive engagement',
-    logo: '📊',
-    category: 'Analytics',
-    href: null,
-  },
-  {
-    id: 'klaviyo',
-    name: 'Klaviyo',
-    description: 'Email and SMS marketing platform for ecommerce businesses',
-    logo: '✉️',
-    category: 'Email Marketing',
-    href: '/dashboard/integrations/klaviyo',
-  },
-];
+const integrations = Object.values(INTEGRATIONS);
 
 export default async function IntegrationsPage() {
   const team = await getTeamForUser();
@@ -53,8 +28,18 @@ export default async function IntegrationsPage() {
     });
   }
 
+  // Sort: connected first, then alphabetically
+  const sortedIntegrations = [...integrations].sort((a, b) => {
+    const aConnected = connectedIntegrations.has(a.id);
+    const bConnected = connectedIntegrations.has(b.id);
+    
+    if (aConnected && !bConnected) return -1;
+    if (!aConnected && bConnected) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Integrations</h1>
         <p className="text-muted-foreground mt-2">
@@ -62,15 +47,10 @@ export default async function IntegrationsPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {integrations.map((integration) => (
-          <IntegrationCard
-            key={integration.id}
-            integration={integration}
-            isConnected={connectedIntegrations.has(integration.id)}
-          />
-        ))}
-      </div>
+      <IntegrationsSearch 
+        integrations={sortedIntegrations}
+        connectedIntegrations={connectedIntegrations}
+      />
     </div>
   );
 }

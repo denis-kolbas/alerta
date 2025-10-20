@@ -24,6 +24,7 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: varchar('role', { length: 20 }).notNull().default('member'),
+  alertEmailPreference: varchar('alert_email_preference', { length: 20 }).notNull().default('critical_only'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   deletedAt: timestamp('deleted_at'),
@@ -76,6 +77,7 @@ export const invitations = pgTable('invitations', {
     .references(() => users.id),
   invitedAt: timestamp('invited_at').notNull().defaultNow(),
   status: varchar('status', { length: 20 }).notNull().default('pending'),
+  token: varchar('token', { length: 255 }).notNull().unique(),
 });
 
 export const teamsRelations = relations(teams, ({ many }) => ({
@@ -133,6 +135,8 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
+export type AlertNotification = typeof alertNotifications.$inferSelect;
+export type NewAlertNotification = typeof alertNotifications.$inferInsert;
 export type TeamDataWithMembers = Team & {
   teamMembers: (TeamMember & {
     user: Pick<User, 'id' | 'name' | 'email'>;
@@ -147,6 +151,7 @@ export const clients = pgTable('clients', {
   brandName: text('brand_name').notNull(), // Team name for backward compatibility
   brazeInstanceUrl: text('braze_instance_url'),
   brazeApiKey: bytea('braze_api_key'), // Encrypted with pgp_sym_encrypt
+  blacklistedEvents: jsonb('blacklisted_events').default([]), // Array of event names to exclude from monitoring
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -163,7 +168,9 @@ export const eventData = pgTable('event_data', {
   eventName: varchar('event_name').notNull(),
   timestamp: timestamp('timestamp').notNull(),
   count: integer('count').notNull(),
-});
+}, (table) => ({
+  uniqueEventData: sql`UNIQUE (brand, event_name, timestamp)`,
+}));
 
 export const alerts = pgTable('alerts', {
   id: serial('id').primaryKey(),
@@ -178,6 +185,15 @@ export const alerts = pgTable('alerts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at'),
   isResolved: boolean('is_resolved').notNull().default(false),
+});
+
+export const alertNotifications = pgTable('alert_notifications', {
+  id: serial('id').primaryKey(),
+  alertId: integer('alert_id').notNull().references(() => alerts.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: varchar('status', { length: 20 }).notNull().default('pending'),
+  sentAt: timestamp('sent_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 // Relations for your custom tables

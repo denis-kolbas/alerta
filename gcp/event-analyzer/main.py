@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from statistics import mean, stdev
 import psycopg2
 from psycopg2.extras import Json
+from google.cloud import pubsub_v1
 
 # --- Config ---
 ANALYSIS_WINDOW_HOURS = 168  # 7 days
@@ -21,18 +22,18 @@ def log(level, message, **kwargs):
 def get_db_connection(db_uri):
     return psycopg2.connect(db_uri)
 
-def get_event_data(conn, brand_name, event_name, hours=ANALYSIS_WINDOW_HOURS):
+def get_event_data(conn, client_id, event_name, hours=ANALYSIS_WINDOW_HOURS):
     """Fetch event data for analysis"""
     query = """
         SELECT timestamp, count
         FROM event_data
-        WHERE brand = %s 
+        WHERE client_id = %s 
           AND event_name = %s 
           AND timestamp >= NOW() - INTERVAL '%s hours'
         ORDER BY timestamp ASC;
     """
     with conn.cursor() as cur:
-        cur.execute(query, (brand_name, event_name, hours))
+        cur.execute(query, (client_id, event_name, hours))
         return cur.fetchall()
 
 def check_existing_alert(conn, brand_name, event_name, rule_type):
@@ -52,21 +53,10 @@ def check_existing_alert(conn, brand_name, event_name, rule_type):
         result = cur.fetchone()
         return {"id": result[0], "created_at": result[1]} if result else None
 
-def get_client_id(conn, brand_name):
-    """Get client_id from brand_name"""
-    query = """
-        SELECT id FROM clients WHERE brand_name = %s LIMIT 1;
-    """
-    with conn.cursor() as cur:
-        cur.execute(query, (brand_name,))
-        result = cur.fetchone()
-        return result[0] if result else None
-
-def create_alert(conn, brand_name, event_name, rule_type, severity, message, metadata):
+def create_alert(conn, client_id, brand_name, event_name, rule_type, severity, message, metadata):
     """Create a new alert"""
-    client_id = get_client_id(conn, brand_name)
     if not client_id:
-        log("error", "Client not found", brand=brand_name)
+        log("error", "Client ID not provided")
         return None
     
     query = """
@@ -83,7 +73,7 @@ def auto_resolve_alert(conn, alert_id):
     """Auto-resolve an alert when condition clears"""
     query = """
         UPDATE alerts
-        SET is_resolved = true, resolved_at = NOW()
+        SET status = 'resolved', is_resolved = true, resolved_at = NOW()
         WHERE id = %s
         RETURNING id;
     """
@@ -138,7 +128,7 @@ def count_current_silence(data_points):
     return silence_hours
 
 # --- Alert Rules ---
-def check_silence_detection(conn, brand_name, event_name, data_points, baseline):
+def check_silence_detection(conn, client_id, brand_name, event_name, data_points, baseline):
     """Rule 1: Detect when event is silent longer than normal"""
     current_silence = count_current_silence(data_points)
     max_silence = baseline["max_silence_hours"]
@@ -171,12 +161,12 @@ def check_silence_detection(conn, brand_name, event_name, data_points, baseline)
         "last_non_zero_timestamp": None  # Could add this if needed
     }
     
-    alert_id = create_alert(conn, brand_name, event_name, "silence_detection", severity, message, metadata)
+    alert_id = create_alert(conn, client_id, brand_name, event_name, "silence_detection", severity, message, metadata)
     log("warning", "Created silence detection alert", 
         brand=brand_name, event=event_name, alert_id=alert_id, severity=severity)
     return alert_id
 
-def check_spike_detection(conn, brand_name, event_name, data_points, baseline):
+def check_spike_detection(conn, client_id, brand_name, event_name, data_points, baseline):
     """Rule 2: Detect when event count spikes above normal"""
     current_count = data_points[-1][1]  # Most recent count
     threshold = baseline["avg_count"] + (3 * baseline["stddev_count"])
@@ -209,12 +199,12 @@ def check_spike_detection(conn, brand_name, event_name, data_points, baseline):
         "stddev_multiplier": round(stddev_multiplier, 2)
     }
     
-    alert_id = create_alert(conn, brand_name, event_name, "spike_detection", "warning", message, metadata)
+    alert_id = create_alert(conn, client_id, brand_name, event_name, "spike_detection", "warning", message, metadata)
     log("warning", "Created spike detection alert", 
         brand=brand_name, event=event_name, alert_id=alert_id)
     return alert_id
 
-def check_drop_detection(conn, brand_name, event_name, data_points, baseline):
+def check_drop_detection(conn, client_id, brand_name, event_name, data_points, baseline):
     """Rule 3: Detect when event count drops below normal (but not zero)"""
     current_count = data_points[-1][1]  # Most recent count
     threshold = baseline["avg_count"] - (3 * baseline["stddev_count"])
@@ -247,7 +237,7 @@ def check_drop_detection(conn, brand_name, event_name, data_points, baseline):
         "stddev_multiplier": round(stddev_multiplier, 2)
     }
     
-    alert_id = create_alert(conn, brand_name, event_name, "drop_detection", "warning", message, metadata)
+    alert_id = create_alert(conn, client_id, brand_name, event_name, "drop_detection", "warning", message, metadata)
     log("warning", "Created drop detection alert", 
         brand=brand_name, event=event_name, alert_id=alert_id)
     return alert_id
@@ -264,9 +254,13 @@ def event_analyzer(request):
         pubsub_message = envelope["message"]
         analysis_job = json.loads(base64.b64decode(pubsub_message["data"]).decode("utf-8"))
         brand_name = analysis_job["brand_name"]
+        integration_name = analysis_job.get("integration_name", "unknown")
+        client_id = analysis_job.get("client_id")
         events_processed = analysis_job["events_processed"]
         log("info", "Received analysis job", 
-            brand=brand_name, 
+            brand=brand_name,
+            integration=integration_name,
+            client_id=client_id,
             event_count=len(events_processed))
     except Exception as e:
         log("error", "Failed to decode Pub/Sub message", error=str(e))
@@ -279,7 +273,7 @@ def event_analyzer(request):
             raise ValueError("SUPABASE_CONNECTION_URI not found")
 
         conn = get_db_connection(db_uri)
-        log("info", "Connected to database", brand=brand_name)
+        log("info", "Connected to database", client_id=client_id, brand=brand_name)
 
         alerts_created = 0
         alerts_resolved = 0
@@ -289,7 +283,7 @@ def event_analyzer(request):
         for event_name in events_processed:
             try:
                 # Fetch historical data
-                data_points = get_event_data(conn, brand_name, event_name)
+                data_points = get_event_data(conn, client_id, event_name)
                 
                 # Skip if insufficient data
                 if len(data_points) < MIN_DATA_POINTS:
@@ -303,9 +297,9 @@ def event_analyzer(request):
                     continue
                 
                 # Run all three rules
-                result1 = check_silence_detection(conn, brand_name, event_name, data_points, baseline)
-                result2 = check_spike_detection(conn, brand_name, event_name, data_points, baseline)
-                result3 = check_drop_detection(conn, brand_name, event_name, data_points, baseline)
+                result1 = check_silence_detection(conn, client_id, brand_name, event_name, data_points, baseline)
+                result2 = check_spike_detection(conn, client_id, brand_name, event_name, data_points, baseline)
+                result3 = check_drop_detection(conn, client_id, brand_name, event_name, data_points, baseline)
                 
                 if result1 or result2 or result3:
                     alerts_created += sum([1 for r in [result1, result2, result3] if r])
@@ -314,23 +308,49 @@ def event_analyzer(request):
                 
             except Exception as e:
                 log("error", "Failed to analyze event", 
+                    client_id=client_id,
                     brand=brand_name, 
                     event=event_name, 
                     error=str(e))
                 continue
 
         log("info", "Analysis complete", 
+            client_id=client_id,
             brand=brand_name,
             events_analyzed=events_analyzed,
             events_skipped=events_skipped,
             alerts_created=alerts_created)
+        
+        # Publish to Pub/Sub to trigger alert notifier if alerts were created
+        if alerts_created > 0:
+            try:
+                project_id = os.environ.get("GCP_PROJECT")
+                topic_name = "alert-notifications"
+                
+                publisher = pubsub_v1.PublisherClient()
+                topic_path = publisher.topic_path(project_id, topic_name)
+                
+                message_data = json.dumps({
+                    "brand_name": brand_name,
+                    "alerts_created": alerts_created,
+                    "timestamp": datetime.utcnow().isoformat()
+                }).encode("utf-8")
+                
+                future = publisher.publish(topic_path, message_data)
+                future.result()  # Wait for publish to complete
+                
+                log("info", "Published to alert-notifications topic", 
+                    client_id=client_id, brand=brand_name, alerts_created=alerts_created)
+            except Exception as pub_error:
+                log("error", "Failed to publish to Pub/Sub", error=str(pub_error))
+                # Don't fail the whole function if Pub/Sub fails
 
     except Exception as e:
-        log("error", "Fatal error in analyzer", brand=brand_name, error=str(e))
+        log("error", "Fatal error in analyzer", client_id=client_id if 'client_id' in locals() else None, brand=brand_name if 'brand_name' in locals() else None, error=str(e))
         raise
     finally:
         if conn:
             conn.close()
-            log("info", "Database connection closed", brand=brand_name)
+            log("info", "Database connection closed", client_id=client_id if 'client_id' in locals() else None, brand=brand_name if 'brand_name' in locals() else None)
 
     return ("OK", 200)

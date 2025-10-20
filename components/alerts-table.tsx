@@ -1,24 +1,24 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
+
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react';
+import { updateAlertStatus } from '@/app/dashboard/alerts/actions';
+import { IntegrationFavicon } from '@/lib/integrations';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { AlertCircle, TrendingUp, TrendingDown, Volume2, CheckCircle2, XCircle } from 'lucide-react';
-import { updateAlertStatus } from '@/app/dashboard/analytics/actions';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface Alert {
   id: number;
@@ -53,25 +53,23 @@ interface AlertsTableProps {
   onAlertClick?: (eventName: string, integrationName: string) => void;
 }
 
-const ruleIcons = {
-  silence_detection: Volume2,
-  spike_detection: TrendingUp,
-  drop_detection: TrendingDown,
+const getSeverityBadgeClass = (severity: string) => {
+  switch (severity) {
+    case 'critical':
+      return 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50';
+    case 'warning':
+      return 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-50';
+    case 'info':
+      return 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50';
+    default:
+      return 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-50';
+  }
 };
-
-const ruleLabels = {
-  silence_detection: 'Silence',
-  spike_detection: 'Spike',
-  drop_detection: 'Drop',
-};
-
-const severityColors = {
-  critical: 'destructive',
-  warning: 'default',
-  info: 'secondary',
-} as const;
 
 export function AlertsTable({ alerts, onAlertClick }: AlertsTableProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const handleStatusChange = async (alertId: number, newStatus: string) => {
     const result = await updateAlertStatus(alertId, newStatus as 'active' | 'resolved' | 'dismissed');
     
@@ -81,142 +79,149 @@ export function AlertsTable({ alerts, onAlertClick }: AlertsTableProps) {
   };
 
   const handleRowClick = (eventName: string, integrationName: string, e: React.MouseEvent) => {
-    // Don't trigger if clicking on the select dropdown
-    if ((e.target as HTMLElement).closest('[role="combobox"]')) {
+    // Don't trigger if clicking on the dropdown menu
+    if ((e.target as HTMLElement).closest('[role="menu"]') || (e.target as HTMLElement).closest('button')) {
       return;
     }
     onAlertClick?.(eventName, integrationName);
   };
 
-  const unresolvedCount = alerts.filter(a => !a.isResolved).length;
-  const resolvedCount = alerts.filter(a => a.isResolved).length;
+  // Pagination
+  const totalPages = Math.ceil(alerts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedAlerts = alerts.slice(startIndex, endIndex);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Alerts</CardTitle>
-            <CardDescription>
-              Anomaly detection alerts for your events
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="destructive" className="h-6">
-              {unresolvedCount} Active
-            </Badge>
-            <Badge variant="secondary" className="h-6">
-              {resolvedCount} Resolved
-            </Badge>
+    <TooltipProvider>
+      <div className="space-y-4">
+        <div className="border rounded-lg overflow-hidden bg-card">
+        <div className="bg-muted/50 px-4 py-3 border-b">
+          <div className="grid grid-cols-[100px_60px_minmax(150px,250px)_100px_1fr_140px] gap-4 items-center">
+            <span className="text-sm font-medium">Time</span>
+            <span className="text-sm font-medium text-center">Source</span>
+            <span className="text-sm font-medium">Event</span>
+            <span className="text-sm font-medium">Severity</span>
+            <span className="text-sm font-medium">Message</span>
+            <span className="text-sm font-medium text-right">Status</span>
           </div>
         </div>
-      </CardHeader>
-      <CardContent>
-        {alerts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <CheckCircle2 className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">No alerts</p>
-            <p className="text-sm text-muted-foreground">
-              All events are operating normally
-            </p>
+        <div className="max-h-[600px] overflow-y-auto">
+          {paginatedAlerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-muted-foreground py-12">
+              <CheckCircle2 className="h-10 w-10 mb-2" />
+              <p className="text-sm font-medium">No alerts</p>
+              <p className="text-xs">Everything is working as intended</p>
+            </div>
+          ) : (
+            paginatedAlerts.map((alert) => {
+              const currentStatus = alert.status || 'active';
+              const isDimmed = currentStatus === 'resolved' || currentStatus === 'dismissed';
+              
+              return (
+                <div
+                  key={alert.id}
+                  className={`grid grid-cols-[100px_60px_minmax(150px,250px)_100px_1fr_140px] gap-4 items-center px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors ${isDimmed ? 'opacity-60' : ''} ${onAlertClick ? 'cursor-pointer' : ''}`}
+                  onClick={(e) => handleRowClick(alert.eventName, alert.integrationName || 'unknown', e)}
+                >
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    {formatDistanceToNow(new Date(alert.createdAt))}
+                  </span>
+                  <div className="flex items-center justify-center">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <IntegrationFavicon integrationId={alert.integrationName || 'unknown'} />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="capitalize">{alert.integrationName || 'unknown'}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="font-medium truncate" title={alert.eventName}>
+                    {alert.eventName}
+                  </div>
+                  <div>
+                    <Badge 
+                      variant="outline" 
+                      className={getSeverityBadgeClass(alert.severity)}
+                    >
+                      {alert.severity}
+                    </Badge>
+                  </div>
+                  <p className="text-sm truncate" title={alert.message}>
+                    {alert.message}
+                  </p>
+                  <div className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Badge 
+                          variant="outline" 
+                          className="capitalize cursor-pointer inline-flex items-center gap-1 hover:bg-accent"
+                        >
+                          {currentStatus}
+                          <ChevronDown className="h-3 w-3" />
+                        </Badge>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusChange(alert.id, 'active')}
+                          disabled={currentStatus === 'active'}
+                        >
+                          <AlertCircle className="mr-2 h-4 w-4 text-red-600" />
+                          Mark as Active
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusChange(alert.id, 'resolved')}
+                          disabled={currentStatus === 'resolved'}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+                          Mark as Resolved
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusChange(alert.id, 'dismissed')}
+                          disabled={currentStatus === 'dismissed'}
+                        >
+                          <XCircle className="mr-2 h-4 w-4 text-gray-600" />
+                          Mark as Dismissed
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {alerts.length > itemsPerPage && (
+        <div className="flex items-center justify-end space-x-2 py-4">
+          <div className="text-muted-foreground flex-1 text-sm">
+            {startIndex + 1}-{Math.min(endIndex, alerts.length)} of {alerts.length}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">Time</TableHead>
-                <TableHead className="w-[120px]">Integration</TableHead>
-                <TableHead className="w-[200px]">Event</TableHead>
-                <TableHead className="w-[100px]">Type</TableHead>
-                <TableHead className="w-[100px]">Severity</TableHead>
-                <TableHead className="min-w-[200px]">Message</TableHead>
-                <TableHead className="w-[160px] text-right">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {alerts.map((alert) => {
-                const Icon = ruleIcons[alert.ruleType as keyof typeof ruleIcons] || AlertCircle;
-                const currentStatus = alert.status || 'active';
-                const isDimmed = currentStatus === 'resolved' || currentStatus === 'dismissed';
-                
-                return (
-                  <TableRow 
-                    key={alert.id} 
-                    className={`${isDimmed ? 'opacity-60' : ''} ${onAlertClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
-                    onClick={(e) => handleRowClick(alert.eventName, alert.integrationName || 'unknown', e)}
-                  >
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {alert.isResolved && alert.resolvedAt
-                        ? formatDistanceToNow(new Date(alert.resolvedAt))
-                        : formatDistanceToNow(new Date(alert.createdAt))}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {alert.integrationName || 'unknown'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium max-w-[200px]">
-                      <div className="truncate" title={alert.eventName}>
-                        {alert.eventName}
-                      </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          {ruleLabels[alert.ruleType as keyof typeof ruleLabels] || alert.ruleType}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <Badge variant={severityColors[alert.severity as keyof typeof severityColors] || 'default'}>
-                        {alert.severity}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[300px]">
-                      <p className="text-sm truncate" title={alert.message}>
-                        {alert.message}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Select
-                        value={currentStatus}
-                        onValueChange={(value) => handleStatusChange(alert.id, value)}
-                      >
-                        <SelectTrigger className="w-[140px] ml-auto">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">
-                            <div className="flex items-center gap-2">
-                              <AlertCircle className="h-4 w-4 text-destructive" />
-                              <span>Active</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="resolved">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              <span>Resolved</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="dismissed">
-                            <div className="flex items-center gap-2">
-                              <XCircle className="h-4 w-4 text-muted-foreground" />
-                              <span>Dismissed</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+      </div>
+    </TooltipProvider>
   );
 }

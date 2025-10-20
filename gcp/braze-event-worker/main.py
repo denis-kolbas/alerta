@@ -65,25 +65,11 @@ def get_event_data_series(session, instance_url, api_key, event_name, ending_at)
 def get_db_connection(db_uri):
     return psycopg2.connect(db_uri)
 
-def get_client_id(conn, brand_name):
-    """Get client_id for Braze integration"""
-    query = """
-        SELECT id FROM clients 
-        WHERE brand_name = %s 
-          AND integration_name = 'braze'
-          AND is_active = true
-        LIMIT 1;
-    """
-    with conn.cursor() as cur:
-        cur.execute(query, (brand_name,))
-        result = cur.fetchone()
-        return result[0] if result else None
-
-def insert_event_data(conn, brand_name, event_name, data, query_timestamp, client_id=None):
+def insert_event_data(conn, client_id, brand_name, event_name, data, query_timestamp):
     insert_query = """
         INSERT INTO event_data (client_id, brand, integration_name, event_name, timestamp, count)
         VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (brand, event_name, timestamp) DO NOTHING;
+        ON CONFLICT (client_id, event_name, timestamp) DO NOTHING;
     """
     try:
         with conn.cursor() as cur:
@@ -109,10 +95,11 @@ def braze_event_worker(request):
     try:
         pubsub_message = envelope["message"]
         client_config = json.loads(base64.b64decode(pubsub_message["data"]).decode("utf-8"))
+        client_id = client_config["client_id"]
         brand_name = client_config["brand_name"]
         instance_url = client_config["instance_url"]
         api_key = client_config["api_key"]
-        log("info", "Received job", brand=brand_name, instance_url=instance_url)
+        log("info", "Received job", client_id=client_id, brand=brand_name, instance_url=instance_url)
     except Exception as e:
         log("error", "Failed to decode Pub/Sub message", error=str(e))
         return ("Bad Request", 200)
@@ -125,16 +112,11 @@ def braze_event_worker(request):
             raise ValueError("SUPABASE_CONNECTION_URI not found")
 
         conn = get_db_connection(db_uri)
-        log("info", "Connected to database", brand=brand_name)
-
-        # Get client_id for this Braze integration
-        client_id = get_client_id(conn, brand_name)
-        if not client_id:
-            log("warning", "Client not found for brand", brand=brand_name)
-            # Continue without client_id for backward compatibility
+        log("info", "Connected to database", client_id=client_id, brand=brand_name)
 
         events = get_events(session, instance_url, api_key)
         log("info", "Fetched event list",
+            client_id=client_id,
             brand=brand_name,
             event_count=len(events),
             events=summarize_list(events))
@@ -145,16 +127,16 @@ def braze_event_worker(request):
         for event_name in events:
             try:
                 data = get_event_data_series(session, instance_url, api_key, event_name, ending_at)
-                insert_event_data(conn, brand_name, event_name, data, ending_at, client_id)
+                insert_event_data(conn, client_id, brand_name, event_name, data, ending_at)
             except Exception as e:
                 failed.append(event_name)
-                log("error", "Event processing failed", brand=brand_name, event=event_name, error=str(e))
+                log("error", "Event processing failed", client_id=client_id, brand=brand_name, event=event_name, error=str(e))
 
         if failed:
-            log("warning", "Partial failure", brand=brand_name, failed_events=summarize_list(failed))
+            log("warning", "Partial failure", client_id=client_id, brand=brand_name, failed_events=summarize_list(failed))
             return (f"Partial failure for {brand_name}", 200)
 
-        log("info", "Successfully processed all events", brand=brand_name, total_events=len(events))
+        log("info", "Successfully processed all events", client_id=client_id, brand=brand_name, total_events=len(events))
         
         # Publish to event analyzer for anomaly detection
         try:
@@ -163,6 +145,8 @@ def braze_event_worker(request):
             
             analysis_message = {
                 "brand_name": brand_name,
+                "integration_name": "braze",
+                "client_id": client_id,
                 "events_processed": events,
                 "timestamp": ending_at.isoformat()
             }
@@ -171,21 +155,23 @@ def braze_event_worker(request):
             future.result(timeout=10)
             
             log("info", "Published to event analyzer", 
+                client_id=client_id,
                 brand=brand_name, 
                 event_count=len(events))
         except Exception as e:
             log("error", "Failed to publish to event analyzer", 
+                client_id=client_id,
                 brand=brand_name, 
                 error=str(e))
             # Don't fail the whole job if alert publishing fails
             
     except Exception as e:
-        log("error", "Fatal error in worker", brand=brand_name, error=str(e))
+        log("error", "Fatal error in worker", client_id=client_id if 'client_id' in locals() else None, brand=brand_name if 'brand_name' in locals() else None, error=str(e))
         raise
     finally:
         if conn:
             conn.close()
-            log("info", "Database connection closed", brand=brand_name)
+            log("info", "Database connection closed", client_id=client_id if 'client_id' in locals() else None, brand=brand_name if 'brand_name' in locals() else None)
         session.close()
 
     return ("OK", 200)

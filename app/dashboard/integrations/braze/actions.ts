@@ -22,6 +22,7 @@ function sanitizeUrl(url: string): string {
 export async function saveBrazeIntegration(data: {
   brazeInstance: string;
   apiKey: string;
+  blacklistedEvents?: string[];
 }) {
   try {
     // Get authenticated user
@@ -60,14 +61,21 @@ export async function saveBrazeIntegration(data: {
 
     if (existingClient.length > 0) {
       // Update existing Braze integration
+      const updateData: Record<string, unknown> = {
+        brazeInstanceUrl: sanitizedUrl,
+        blacklistedEvents: data.blacklistedEvents || [],
+        isActive: true,
+        updatedAt: new Date(),
+      };
+      
+      // Only update API key if a new one was provided
+      if (data.apiKey && data.apiKey.trim() !== '') {
+        updateData.brazeApiKey = sql`pgp_sym_encrypt(${data.apiKey}, ${encKey})`;
+      }
+      
       await db
         .update(clients)
-        .set({
-          brazeInstanceUrl: sanitizedUrl,
-          brazeApiKey: sql`pgp_sym_encrypt(${data.apiKey}, ${encKey})`,
-          isActive: true,
-          updatedAt: new Date(),
-        })
+        .set(updateData)
         .where(eq(clients.id, existingClient[0].id));
     } else {
       // Insert new Braze integration
@@ -77,6 +85,7 @@ export async function saveBrazeIntegration(data: {
         brandName: team.name,
         brazeInstanceUrl: sanitizedUrl,
         brazeApiKey: sql`pgp_sym_encrypt(${data.apiKey}, ${encKey})`,
+        blacklistedEvents: data.blacklistedEvents || [],
         isActive: true,
       });
     }
@@ -87,6 +96,44 @@ export async function saveBrazeIntegration(data: {
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to save integration' 
+    };
+  }
+}
+
+export async function disconnectBrazeIntegration() {
+  try {
+    // Get authenticated user
+    const user = await getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    // Get user's team
+    const team = await getTeamForUser();
+    if (!team) {
+      return { success: false, error: 'No team found' };
+    }
+
+    // Deactivate the Braze integration
+    await db
+      .update(clients)
+      .set({
+        isActive: false,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(clients.teamId, team.id),
+          eq(clients.integrationName, 'braze')
+        )
+      );
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error disconnecting Braze integration:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to disconnect integration' 
     };
   }
 }

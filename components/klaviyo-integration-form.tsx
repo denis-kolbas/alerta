@@ -9,7 +9,14 @@ import { saveKlaviyoIntegration } from '@/app/dashboard/integrations/klaviyo/act
 import { toast } from 'sonner';
 import { ExternalLink } from 'lucide-react';
 
-export function KlaviyoIntegrationForm() {
+interface KlaviyoIntegrationFormProps {
+  existingData?: {
+    hasApiKey: boolean;
+    isActive: boolean;
+  } | null;
+}
+
+export function KlaviyoIntegrationForm({ existingData }: KlaviyoIntegrationFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isApiKeyFocused, setIsApiKeyFocused] = useState(false);
@@ -22,6 +29,27 @@ export function KlaviyoIntegrationForm() {
     setIsLoading(true);
 
     try {
+      // First validate the API key
+      const useExistingKey = isConnected && !formData.apiKey;
+      
+      const validateResponse = await fetch('/api/integrations/klaviyo/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: formData.apiKey,
+          useExistingCredentials: useExistingKey
+        })
+      });
+
+      const validateData = await validateResponse.json();
+
+      if (!validateResponse.ok) {
+        toast.error(validateData.error || 'Failed to validate API key');
+        setIsLoading(false);
+        return;
+      }
+
+      // If validation successful, save the integration
       const result = await saveKlaviyoIntegration(formData);
       
       if (result.success) {
@@ -30,12 +58,14 @@ export function KlaviyoIntegrationForm() {
       } else {
         toast.error(result.error || 'Failed to save integration');
       }
-    } catch (error) {
+    } catch {
       toast.error('An unexpected error occurred');
     } finally {
       setIsLoading(false);
     }
   };
+
+  const isConnected = existingData?.isActive && existingData?.hasApiKey;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
@@ -48,7 +78,7 @@ export function KlaviyoIntegrationForm() {
           id="apiKey"
           name="klaviyo-api-key-secret"
           type="password"
-          placeholder="pk_..."
+          placeholder={existingData?.hasApiKey ? "••••••••••••••••" : "pk_..."}
           value={formData.apiKey}
           onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
           onFocus={(e) => {
@@ -61,11 +91,13 @@ export function KlaviyoIntegrationForm() {
           data-lpignore="true"
           data-1p-ignore="true"
           readOnly={!isApiKeyFocused}
-          required
+          required={!existingData?.hasApiKey}
         />
         <div className="flex items-start gap-2 text-sm text-muted-foreground">
           <div className="flex-1">
-            <p>Your API key will be encrypted and stored securely.</p>
+            <p>{existingData?.hasApiKey 
+              ? "Leave blank to keep existing API key, or enter a new one to update" 
+              : "Your API key will be encrypted and stored securely."}</p>
             <p className="mt-1">
               Required scopes: <code className="text-xs bg-muted px-1 py-0.5 rounded">events:read</code>, <code className="text-xs bg-muted px-1 py-0.5 rounded">metrics:read</code>
             </p>
@@ -89,7 +121,7 @@ export function KlaviyoIntegrationForm() {
       </div>
 
       <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? 'Saving...' : 'Save Integration'}
+        {isLoading ? 'Saving...' : (isConnected ? 'Save' : 'Connect')}
       </Button>
     </form>
   );

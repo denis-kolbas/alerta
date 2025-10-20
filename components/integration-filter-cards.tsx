@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { IntegrationIcon } from '@/lib/integrations';
 
 interface IntegrationStats {
   name: string;
@@ -16,7 +17,8 @@ interface IntegrationFilterCardsProps {
   onToggle: (integration: string) => void;
 }
 
-const integrationLogos: Record<string, string> = {
+// Emoji fallbacks until images are added
+const integrationEmojis: Record<string, string> = {
   braze: '🔥',
   klaviyo: '✉️',
   mixpanel: '📊',
@@ -43,44 +45,41 @@ export function IntegrationFilterCards({
     <div className="flex gap-3 flex-wrap">
       {integrations.map((integration) => {
         const isSelected = selectedIntegrations.includes(integration.name);
-        const logo = integrationLogos[integration.name] || '📦';
+        const logo = integrationEmojis[integration.name] || '📦';
         const colorClass = integrationColors[integration.name] || 'from-gray-500/10 to-gray-500/10 border-gray-200 dark:border-gray-800';
 
         return (
           <Card
             key={integration.name}
-            className={`cursor-pointer transition-all hover:shadow-sm relative overflow-hidden ${
+            className={`cursor-pointer transition-all relative overflow-hidden px-5 py-3.5 gap-0 ${
               isSelected
-                ? `ring-2 ring-primary bg-gradient-to-br ${colorClass}`
-                : 'hover:border-primary/50'
+                ? `bg-primary/5 border-primary/50 shadow-sm`
+                : 'hover:bg-accent/50 hover:border-primary/20'
             }`}
             onClick={() => onToggle(integration.name)}
           >
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="text-2xl">{logo}</div>
+            <CardContent className="p-0 flex items-center gap-3.5">
+              <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
+                <IntegrationIcon integrationId={integration.name} size="default" />
+              </div>
               
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold capitalize text-sm">
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium capitalize text-sm">
                     {integration.name}
                   </span>
-                  {integration.isActive && (
-                    <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
-                      Active
-                    </Badge>
-                  )}
                   {integration.activeAlertCount > 0 && (
-                    <Badge variant="destructive" className="h-4 text-[10px] px-1.5">
+                    <Badge variant="destructive" className="h-4 text-[10px] px-1.5 font-normal">
                       {integration.activeAlertCount}
                     </Badge>
                   )}
                 </div>
                 
-                <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-bold">
+                <div className="flex items-baseline gap-1 text-muted-foreground">
+                  <span className="text-sm tabular-nums">
                     {integration.eventCount.toLocaleString()}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-sm">
                     events
                   </span>
                 </div>

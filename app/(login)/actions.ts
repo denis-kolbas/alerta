@@ -9,6 +9,7 @@ import {
   teams,
   teamMembers,
   activityLogs,
+  invitations,
   type NewUser,
   type NewTeam,
   type NewTeamMember,
@@ -23,6 +24,8 @@ import {
   validatedAction,
   validatedActionWithUser
 } from '@/lib/auth/middleware';
+import { sendTeamInvitationEmail } from '@/lib/email';
+import crypto from 'crypto';
 
 async function logActivity(
   teamId: number | null | undefined,
@@ -219,6 +222,24 @@ export const updateAccount = validatedActionWithUser(
   }
 );
 
+const updateNotificationPreferencesSchema = z.object({
+  alertEmailPreference: z.enum(['all', 'critical_only', 'none'])
+});
+
+export const updateNotificationPreferences = validatedActionWithUser(
+  updateNotificationPreferencesSchema,
+  async (data, _, user) => {
+    const { alertEmailPreference } = data;
+
+    await db
+      .update(users)
+      .set({ alertEmailPreference })
+      .where(eq(users.id, user.id));
+
+    return { success: 'Notification preferences updated successfully.' };
+  }
+);
+
 const removeTeamMemberSchema = z.object({
   memberId: z.number()
 });
@@ -278,6 +299,59 @@ export const inviteTeamMember = validatedActionWithUser(
 
     if (existingMember.length > 0) {
       return { error: 'User is already a member of this team' };
+    }
+
+    // Check for existing pending invitation
+    const existingInvitation = await db
+      .select()
+      .from(invitations)
+      .where(
+        and(
+          eq(invitations.email, email),
+          eq(invitations.teamId, userWithTeam.teamId),
+          eq(invitations.status, 'pending')
+        )
+      )
+      .limit(1);
+
+    if (existingInvitation.length > 0) {
+      return { error: 'An invitation has already been sent to this email' };
+    }
+
+    // Generate unique token
+    const token = crypto.randomBytes(32).toString('hex');
+
+    // Create invitation
+    const [invitation] = await db
+      .insert(invitations)
+      .values({
+        teamId: userWithTeam.teamId,
+        email,
+        role,
+        invitedBy: user.id,
+        token,
+        status: 'pending',
+      })
+      .returning();
+
+    // Get team info for email
+    const team = await db.query.teams.findFirst({
+      where: eq(teams.id, userWithTeam.teamId),
+    });
+
+    // Send invitation email
+    const invitationUrl = `${process.env.BASE_URL}/invite/${token}`;
+    const emailResult = await sendTeamInvitationEmail({
+      to: email,
+      inviterName: user.name || user.email,
+      teamName: team?.name || 'the team',
+      invitationUrl,
+    });
+
+    if (emailResult.error) {
+      // Rollback invitation if email fails
+      await db.delete(invitations).where(eq(invitations.id, invitation.id));
+      return { error: 'Failed to send invitation email. Please try again.' };
     }
 
     await logActivity(

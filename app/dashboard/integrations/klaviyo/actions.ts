@@ -8,6 +8,7 @@ import { eq, and } from 'drizzle-orm';
 
 export async function saveKlaviyoIntegration(data: {
   apiKey: string;
+  blacklistedEvents?: string[];
 }) {
   try {
     // Get authenticated user
@@ -43,13 +44,24 @@ export async function saveKlaviyoIntegration(data: {
 
     if (existingClient.length > 0) {
       // Update existing Klaviyo integration
+      const updateData: Record<string, unknown> = {
+        isActive: true,
+        updatedAt: new Date(),
+      };
+      
+      // Only update API key if a new one was provided
+      if (data.apiKey && data.apiKey.trim() !== '') {
+        updateData.brazeApiKey = sql`pgp_sym_encrypt(${data.apiKey}, ${encKey})`;
+      }
+      
+      // Update blacklisted events if provided
+      if (data.blacklistedEvents !== undefined) {
+        updateData.blacklistedEvents = data.blacklistedEvents;
+      }
+      
       await db
         .update(clients)
-        .set({
-          brazeApiKey: sql`pgp_sym_encrypt(${data.apiKey}, ${encKey})`,
-          isActive: true,
-          updatedAt: new Date(),
-        })
+        .set(updateData)
         .where(eq(clients.id, existingClient[0].id));
     } else {
       // Insert new Klaviyo integration
@@ -68,6 +80,44 @@ export async function saveKlaviyoIntegration(data: {
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to save integration' 
+    };
+  }
+}
+
+export async function disconnectKlaviyoIntegration() {
+  try {
+    // Get authenticated user
+    const user = await getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    // Get user's team
+    const team = await getTeamForUser();
+    if (!team) {
+      return { success: false, error: 'No team found' };
+    }
+
+    // Deactivate the Klaviyo integration
+    await db
+      .update(clients)
+      .set({
+        isActive: false,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(clients.teamId, team.id),
+          eq(clients.integrationName, 'klaviyo')
+        )
+      );
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error disconnecting Klaviyo integration:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to disconnect integration' 
     };
   }
 }
