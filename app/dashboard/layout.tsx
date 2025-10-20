@@ -35,6 +35,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Overview' },
   { href: '/dashboard/alerts', icon: BarChart, label: 'Alerts' },
+  { href: '/dashboard/alerts-2', icon: BarChart, label: 'Alerts 2' },
   { href: '/dashboard/integrations', icon: Plug, label: 'Integrations' },
   { href: '/dashboard/team', icon: Users, label: 'Team' },
   { href: '/dashboard/account', icon: Settings, label: 'Account' },

@@ -122,15 +122,15 @@ export function AlertsPageClient({ alerts, platforms }: AlertsPageClientProps) {
   return (
     <div className="space-y-6">
       {/* Status Summary */}
-      <Card className={stats.active === 0 ? 'border-green-200 bg-green-50/50 py-0' : stats.critical > 0 ? 'border-red-200 bg-red-50/50 py-0' : 'border-orange-200 bg-orange-50/50 py-0'}>
+      <Card className="py-0">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             {stats.active === 0 ? (
               <>
                 <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
                 <div>
-                  <h3 className="font-semibold text-green-900">All clear!</h3>
-                  <p className="text-sm text-green-700 mt-0.5">
+                  <h3 className="font-semibold">All clear!</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     No active alerts. Everything is running smoothly. Sit back and relax.
                   </p>
                 </div>
@@ -139,10 +139,10 @@ export function AlertsPageClient({ alerts, platforms }: AlertsPageClientProps) {
               <>
                 <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-red-900">
+                  <h3 className="font-semibold">
                     {stats.critical} critical {stats.critical === 1 ? 'alert' : 'alerts'} require attention
                   </h3>
-                  <p className="text-sm text-red-700 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     {mostRecentCritical && (
                       <>Pay attention to <span className="font-medium">{mostRecentCritical.eventName}</span> from {mostRecentCritical.integrationName}. </>
                     )}
@@ -154,10 +154,10 @@ export function AlertsPageClient({ alerts, platforms }: AlertsPageClientProps) {
               <>
                 <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0" />
                 <div>
-                  <h3 className="font-semibold text-orange-900">
+                  <h3 className="font-semibold">
                     {stats.active} active {stats.active === 1 ? 'alert' : 'alerts'}
                   </h3>
-                  <p className="text-sm text-orange-700 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     You have warnings that should be reviewed. No critical issues detected.
                   </p>
                 </div>

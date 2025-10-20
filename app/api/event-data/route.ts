@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { eventData } from '@/lib/db/schema';
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { getUser } from '@/lib/db/queries';
 
 export async function GET(request: NextRequest) {
@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const eventName = searchParams.get('eventName');
     const integrationName = searchParams.get('integrationName');
+    const endTime = searchParams.get('endTime');
+    const hours = searchParams.get('hours');
 
     if (!eventName || !integrationName) {
       return NextResponse.json(
@@ -22,9 +24,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get data for the last 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Determine time range
+    let startDate: Date;
+    let endDate: Date;
+
+    if (endTime && hours) {
+      // Get X hours before the specified end time (for alert context)
+      endDate = new Date(endTime);
+      const hoursToSubtract = parseInt(hours);
+      startDate = new Date(endDate.getTime() - hoursToSubtract * 60 * 60 * 1000);
+    } else {
+      // Default: last 7 days
+      endDate = new Date();
+      startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    }
 
     const data = await db
       .select({
@@ -36,7 +49,8 @@ export async function GET(request: NextRequest) {
         and(
           eq(eventData.eventName, eventName),
           eq(eventData.integrationName, integrationName),
-          gte(eventData.timestamp, sevenDaysAgo)
+          gte(eventData.timestamp, startDate),
+          lte(eventData.timestamp, endDate)
         )
       )
       .orderBy(eventData.timestamp);

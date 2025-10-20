@@ -1,21 +1,21 @@
 import { getTeamForUser, getAlerts } from '@/lib/db/queries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertsPageClient } from '@/components/alerts-page-client';
+import { Alerts2Client } from '@/components/alerts-2-client';
 import { db } from '@/lib/db/drizzle';
 import { clients } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { Plug, Plus } from 'lucide-react';
 import Link from 'next/link';
 
-export default async function AnalyticsPage() {
+export default async function Alerts2Page() {
   const team = await getTeamForUser();
   
   if (!team) {
     return (
       <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <h1 className="text-3xl font-bold tracking-tight">Alerts</h1>
+        <div className="max-w-4xl mx-auto space-y-6">
+          <h1 className="text-3xl font-bold tracking-tight">Alerts 2</h1>
           <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground">No team found</p>
@@ -46,11 +46,11 @@ export default async function AnalyticsPage() {
   if (activeIntegrations.length === 0) {
     return (
       <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-4xl mx-auto space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Alerts</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Alerts 2</h1>
             <p className="text-muted-foreground mt-2">
-              This is where pesky problems show up.
+              Notification-style alert management
             </p>
           </div>
 
@@ -61,7 +61,7 @@ export default async function AnalyticsPage() {
               </div>
               <CardTitle>No active integrations</CardTitle>
               <CardDescription>
-                You don't have any active integrations. Let's connect your first one now to start monitoring your events.
+                You don&apos;t have any active integrations. Let&apos;s connect your first one now to start monitoring your events.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center pb-8">
@@ -80,15 +80,15 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Alerts</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Alerts 2</h1>
           <p className="text-muted-foreground mt-2">
-            Monitor and manage anomalies across your integrations
+            Notification-style alert management
           </p>
         </div>
 
-        <AlertsPageClient alerts={alerts} platforms={platforms} />
+        <Alerts2Client alerts={alerts} platforms={platforms} />
       </div>
     </div>
   );

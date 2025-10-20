@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -17,27 +17,27 @@ interface IntegrationCardProps {
 export function IntegrationCard({ integration, isConnected }: IntegrationCardProps) {
 
   return (
-    <Card className="flex flex-col transition-colors duration-200 hover:border-primary/40">
-        <CardHeader>
-          <div className="flex items-center gap-3 min-w-0">
+    <Card className="flex flex-col transition-colors duration-200 hover:border-primary/40 overflow-hidden">
+        <CardHeader className="space-y-3">
+          <div className="flex items-center gap-3">
             <div className="w-16 h-16 flex items-center justify-center flex-shrink-0">
               <IntegrationIcon integrationId={integration.id} size="large" />
             </div>
             <div className="min-w-0 flex-1">
-              <CardTitle className="truncate">{integration.name}</CardTitle>
-              <Badge variant="secondary" className="mt-1 whitespace-nowrap">
+              <div className="flex items-start justify-between gap-2">
+                <CardTitle className="truncate">{integration.name}</CardTitle>
+                {isConnected && (
+                  <Badge variant="default" className="bg-green-600 whitespace-nowrap flex-shrink-0 text-xs">
+                    Connected
+                  </Badge>
+                )}
+              </div>
+              <span className="mt-1 text-xs text-muted-foreground">
                 {integration.category}
-              </Badge>
+              </span>
             </div>
           </div>
-          {isConnected && (
-            <CardAction>
-              <Badge variant="default" className="bg-green-600 whitespace-nowrap">
-                Connected
-              </Badge>
-            </CardAction>
-          )}
-          <CardDescription>
+          <CardDescription className="line-clamp-2">
             {integration.description}
           </CardDescription>
         </CardHeader>

@@ -78,79 +78,81 @@ export function DashboardClient({ integrationData, activeIntegrations, recentAle
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {activeIntegrations.length} {activeIntegrations.length === 1 ? 'integration' : 'integrations'} connected
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/dashboard/integrations">
-            <Plus className="mr-2 h-4 w-4" />
-            Connect New
-          </Link>
-        </Button>
-      </div>
-
-      {/* Platform Scorecards */}
-      {platformScorecardData.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {platformScorecardData.map(platform => (
-            <PlatformScorecard
-              key={platform.platform}
-              platform={platform.platform}
-              lastSyncTime={platform.lastSyncTime}
-              eventCount={platform.eventCount}
-              percentChange={platform.percentChange}
-              activeAlerts={platform.activeAlerts}
-              detailsUrl={platform.detailsUrl}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Analytics</h2>
-        <div className="flex items-center border rounded-md bg-background">
-          <Button
-            variant={timeRange === '7d' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setTimeRange('7d')}
-            className="rounded-r-none"
-          >
-            7D
-          </Button>
-          <Button
-            variant={timeRange === '30d' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setTimeRange('30d')}
-            className="rounded-none"
-          >
-            30D
-          </Button>
-          <Button
-            variant={timeRange === '90d' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setTimeRange('90d')}
-            className="rounded-l-none"
-          >
-            90D
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {activeIntegrations.length} {activeIntegrations.length === 1 ? 'integration' : 'integrations'} connected
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/integrations">
+              <Plus className="mr-2 h-4 w-4" />
+              Connect New
+            </Link>
           </Button>
         </div>
-      </div>
-      
-      <EventsTimeseriesChart 
-        integrationData={integrationData}
-        activeIntegrations={activeIntegrations}
-        timeRange={timeRange}
-      />
 
-      <AlertsDailyChart alerts={recentAlerts} timeRange={timeRange} />
+        {/* Platform Scorecards */}
+        {platformScorecardData.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {platformScorecardData.map(platform => (
+              <PlatformScorecard
+                key={platform.platform}
+                platform={platform.platform}
+                lastSyncTime={platform.lastSyncTime}
+                eventCount={platform.eventCount}
+                percentChange={platform.percentChange}
+                activeAlerts={platform.activeAlerts}
+                detailsUrl={platform.detailsUrl}
+              />
+            ))}
+          </div>
+        )}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <AlertsSeverityPie alerts={recentAlerts} timeRange={timeRange} />
-        <AlertsByPlatform alerts={recentAlerts} />
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Analytics</h2>
+          <div className="flex items-center border rounded-md bg-background">
+            <Button
+              variant={timeRange === '7d' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setTimeRange('7d')}
+              className="rounded-r-none"
+            >
+              7D
+            </Button>
+            <Button
+              variant={timeRange === '30d' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setTimeRange('30d')}
+              className="rounded-none"
+            >
+              30D
+            </Button>
+            <Button
+              variant={timeRange === '90d' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setTimeRange('90d')}
+              className="rounded-l-none"
+            >
+              90D
+            </Button>
+          </div>
+        </div>
+        
+        <EventsTimeseriesChart 
+          integrationData={integrationData}
+          activeIntegrations={activeIntegrations}
+          timeRange={timeRange}
+        />
+
+        <AlertsDailyChart alerts={recentAlerts} timeRange={timeRange} />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <AlertsSeverityPie alerts={recentAlerts} timeRange={timeRange} />
+          <AlertsByPlatform alerts={recentAlerts} />
+        </div>
       </div>
     </div>
   );
