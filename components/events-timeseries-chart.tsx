@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { format, subDays } from 'date-fns';
+import { getIntegrationColor } from '@/lib/integrations';
 
 interface EventData {
   integrationName: string;
@@ -60,12 +61,11 @@ export function EventsTimeseriesChart({ integrationData, activeIntegrations, tim
       ...dataByDate[date],
     }));
 
-    // Create chart config - use brand colors
-    const chartConfig: ChartConfig = activeIntegrations.reduce((acc, integration, index) => {
-      const colorIndex = (index % 5) + 1;
+    // Create chart config - use integration brand colors
+    const chartConfig: ChartConfig = activeIntegrations.reduce((acc, integration) => {
       acc[integration] = {
         label: integration.charAt(0).toUpperCase() + integration.slice(1),
-        color: `var(--chart-${colorIndex})`,
+        color: getIntegrationColor(integration),
       };
       return acc;
     }, {} as ChartConfig);

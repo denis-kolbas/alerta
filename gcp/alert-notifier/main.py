@@ -5,32 +5,68 @@ import os
 import json
 from datetime import datetime, timedelta
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import base64
 
-# Database connection
-def get_db_connection():
-    return psycopg2.connect(os.environ['DATABASE_URL'])
+# --- Structured Logging ---
+def log(level, message, **kwargs):
+    entry = {"severity": level.upper(), "function": "alert-notifier", "message": message}
+    if kwargs:
+        entry.update(kwargs)
+    print(json.dumps(entry))
 
-# Resend API
-RESEND_API_KEY = os.environ['RESEND_API_KEY']
+# --- HTTP Session ---
+def get_session_with_retries():
+    """Create HTTP session with retry logic for Resend API"""
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["POST"]
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    return session
+
+# --- Database connection ---
+def get_db_connection():
+    db_uri = os.environ.get("SUPABASE_CONNECTION_URI")
+    if not db_uri:
+        raise ValueError("SUPABASE_CONNECTION_URI not found")
+    return psycopg2.connect(db_uri, connect_timeout=10)
+
+# --- Configuration ---
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+if not RESEND_API_KEY:
+    log("error", "RESEND_API_KEY not configured")
+    raise ValueError("RESEND_API_KEY not found")
+
 BASE_URL = os.environ.get('BASE_URL', 'https://vibebench.io')
 
-def send_email(to_email, subject, html_content):
-    """Send email via Resend API"""
-    response = requests.post(
-        'https://api.resend.com/emails',
-        headers={
-            'Authorization': f'Bearer {RESEND_API_KEY}',
-            'Content-Type': 'application/json'
-        },
-        json={
-            'from': 'Alerta <noreply@vibebench.io>',
-            'to': [to_email],
-            'subject': subject,
-            'html': html_content
-        }
-    )
-    return response.status_code == 200
+def send_email(session, to_email, subject, html_content):
+    """Send email via Resend API with retry logic"""
+    try:
+        response = session.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {RESEND_API_KEY}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'from': 'Alerta <noreply@vibebench.io>',
+                'to': [to_email],
+                'subject': subject,
+                'html': html_content
+            },
+            timeout=(5, 20)
+        )
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        log("error", "Failed to send email", email=to_email, error=str(e))
+        return False
 
 def format_alert_html(alert):
     """Format a single alert as HTML"""
@@ -113,32 +149,36 @@ def alert_notifier(cloud_event):
     Triggered by Pub/Sub when event-analyzer completes.
     Processes new alerts and sends email notifications.
     """
-    print(f"Alert notifier triggered at {datetime.utcnow()}")
+    log("info", "Alert notifier triggered", timestamp=datetime.utcnow().isoformat())
     
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    conn = None
+    session = get_session_with_retries()
     
     try:
-        # Get all pending alerts (created in last 15 minutes to catch any stragglers)
-        fifteen_min_ago = datetime.utcnow() - timedelta(minutes=15)
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
+        # Get all active alerts that haven't been notified yet
         cur.execute("""
-            SELECT a.*, c.integration_name, c.team_id
+            SELECT DISTINCT a.*, c.integration_name, c.team_id
             FROM alerts a
             JOIN clients c ON a.client_id = c.id
-            WHERE a.created_at >= %s
-            AND a.status = 'active'
-        """, (fifteen_min_ago,))
+            LEFT JOIN alert_notifications an ON a.id = an.alert_id
+            WHERE a.status = 'active'
+            AND (an.id IS NULL OR an.status IN ('pending', 'failed'))
+            ORDER BY a.created_at DESC
+        """)
         
-        recent_alerts = cur.fetchall()
-        print(f"Found {len(recent_alerts)} recent active alerts")
+        unnotified_alerts = cur.fetchall()
+        log("info", "Found unnotified alerts", count=len(unnotified_alerts))
         
-        if not recent_alerts:
+        if not unnotified_alerts:
+            log("info", "No unnotified alerts to process")
             return
         
         # Group alerts by team
         alerts_by_team = {}
-        for alert in recent_alerts:
+        for alert in unnotified_alerts:
             team_id = alert['team_id']
             if team_id not in alerts_by_team:
                 alerts_by_team[team_id] = []
@@ -204,7 +244,7 @@ def alert_notifier(cloud_event):
                 
                 if last_sent:
                     # User received email recently, mark as pending for next batch
-                    print(f"User {email} received email recently, queuing {len(new_alerts)} alerts")
+                    log("info", "Queuing alerts for batching", email=email, alert_count=len(new_alerts))
                     for alert in new_alerts:
                         cur.execute("""
                             INSERT INTO alert_notifications (alert_id, user_id, status)
@@ -224,10 +264,10 @@ def alert_notifier(cloud_event):
                     
                     # Send email
                     subject, html = create_email_html(all_alerts_to_send, team_name)
-                    success = send_email(email, subject, html)
+                    success = send_email(session, email, subject, html)
                     
                     if success:
-                        print(f"Sent email to {email} with {len(all_alerts_to_send)} alerts")
+                        log("info", "Sent email", email=email, alert_count=len(all_alerts_to_send))
                         # Mark all as sent
                         for alert in all_alerts_to_send:
                             cur.execute("""
@@ -237,7 +277,7 @@ def alert_notifier(cloud_event):
                                 DO UPDATE SET status = 'sent', sent_at = NOW()
                             """, (alert['id'], user_id))
                     else:
-                        print(f"Failed to send email to {email}")
+                        log("error", "Failed to send email", email=email)
                         # Mark as failed
                         for alert in new_alerts:
                             cur.execute("""
@@ -247,12 +287,22 @@ def alert_notifier(cloud_event):
                             """, (alert['id'], user_id))
         
         conn.commit()
-        print("Alert notification processing complete")
+        log("info", "Alert notification processing complete")
         
     except Exception as e:
-        print(f"Error processing alerts: {e}")
-        conn.rollback()
+        log("error", "Error processing alerts", error=str(e))
+        if conn:
+            conn.rollback()
         raise
     finally:
-        cur.close()
-        conn.close()
+        if conn:
+            try:
+                cur.close()
+                conn.close()
+                log("info", "Database connection closed")
+            except Exception as e:
+                log("warning", "Error closing database connection", error=str(e))
+        try:
+            session.close()
+        except Exception as e:
+            log("warning", "Error closing HTTP session", error=str(e))

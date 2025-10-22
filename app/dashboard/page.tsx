@@ -3,6 +3,10 @@ import { getTeamForUser } from '@/lib/db/queries';
 import { db } from '@/lib/db/drizzle';
 import { eventData, clients, alerts } from '@/lib/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Plug, Plus } from 'lucide-react';
+import Link from 'next/link';
 
 export default async function DashboardPage() {
   const team = await getTeamForUser();
@@ -21,6 +25,42 @@ export default async function DashboardPage() {
         eq(clients.isActive, true)
       )
     );
+
+  // Show onboarding if no active integrations
+  if (activeIntegrations.length === 0) {
+    return (
+      <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
+            <p className="text-muted-foreground mt-2">
+              Monitor your integrations and track event anomalies
+            </p>
+          </div>
+
+          <Card className="border-dashed">
+            <CardHeader className="text-center pb-4">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <Plug className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <CardTitle>No active integrations</CardTitle>
+              <CardDescription>
+                You don't have any active integrations. Let's connect your first one now to start monitoring your events.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center pb-8">
+              <Button asChild className="bg-[#ff4f00] hover:bg-[#e64700] text-white">
+                <Link href="/dashboard/integrations">
+                  <Plus className="mr-1 h-4 w-4" />
+                  Connect
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // Get event data for the last 90 days (to support all time range filters)
   const ninetyDaysAgo = new Date();

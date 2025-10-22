@@ -14,7 +14,7 @@ export default async function Alerts2Page() {
   if (!team) {
     return (
       <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6">
           <h1 className="text-3xl font-bold tracking-tight">Alerts 2</h1>
           <Card>
             <CardContent className="pt-6">
@@ -46,7 +46,7 @@ export default async function Alerts2Page() {
   if (activeIntegrations.length === 0) {
     return (
       <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Alerts 2</h1>
             <p className="text-muted-foreground mt-2">
@@ -80,7 +80,7 @@ export default async function Alerts2Page() {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Alerts 2</h1>
           <p className="text-muted-foreground mt-2">

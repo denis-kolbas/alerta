@@ -69,18 +69,7 @@ def create_alert(conn, client_id, brand_name, event_name, rule_type, severity, m
         conn.commit()
         return cur.fetchone()[0]
 
-def auto_resolve_alert(conn, alert_id):
-    """Auto-resolve an alert when condition clears"""
-    query = """
-        UPDATE alerts
-        SET status = 'resolved', is_resolved = true, resolved_at = NOW()
-        WHERE id = %s
-        RETURNING id;
-    """
-    with conn.cursor() as cur:
-        cur.execute(query, (alert_id,))
-        conn.commit()
-        return cur.fetchone()[0] if cur.rowcount > 0 else None
+# auto_resolve_alert function removed - alerts should only be resolved manually by users
 
 # --- Baseline Calculation ---
 def calculate_baseline(data_points):
@@ -135,12 +124,8 @@ def check_silence_detection(conn, client_id, brand_name, event_name, data_points
     
     # Skip if no silence or within normal range
     if current_silence == 0 or current_silence <= max_silence * 1.5:
-        # Check if there's an existing alert to auto-resolve
-        existing = check_existing_alert(conn, brand_name, event_name, "silence_detection")
-        if existing:
-            auto_resolve_alert(conn, existing["id"])
-            log("info", "Auto-resolved silence alert", 
-                brand=brand_name, event=event_name, alert_id=existing["id"])
+        # Condition cleared - don't create new alert, but don't auto-resolve either
+        # Alerts should only be resolved manually by users
         return None
     
     # Calculate severity
@@ -173,12 +158,8 @@ def check_spike_detection(conn, client_id, brand_name, event_name, data_points, 
     
     # Skip if within normal range
     if current_count <= threshold:
-        # Check if there's an existing alert to auto-resolve
-        existing = check_existing_alert(conn, brand_name, event_name, "spike_detection")
-        if existing:
-            auto_resolve_alert(conn, existing["id"])
-            log("info", "Auto-resolved spike alert", 
-                brand=brand_name, event=event_name, alert_id=existing["id"])
+        # Condition cleared - don't create new alert, but don't auto-resolve either
+        # Alerts should only be resolved manually by users
         return None
     
     # Calculate how many standard deviations above
@@ -211,12 +192,8 @@ def check_drop_detection(conn, client_id, brand_name, event_name, data_points, b
     
     # Skip if zero (that's silence detection) or within normal range
     if current_count == 0 or current_count >= threshold:
-        # Check if there's an existing alert to auto-resolve
-        existing = check_existing_alert(conn, brand_name, event_name, "drop_detection")
-        if existing:
-            auto_resolve_alert(conn, existing["id"])
-            log("info", "Auto-resolved drop alert", 
-                brand=brand_name, event=event_name, alert_id=existing["id"])
+        # Condition cleared - don't create new alert, but don't auto-resolve either
+        # Alerts should only be resolved manually by users
         return None
     
     # Calculate how many standard deviations below
@@ -324,7 +301,7 @@ def event_analyzer(request):
         # Publish to Pub/Sub to trigger alert notifier if alerts were created
         if alerts_created > 0:
             try:
-                project_id = os.environ.get("GCP_PROJECT")
+                project_id = "gen-lang-client-0044777751"
                 topic_name = "alert-notifications"
                 
                 publisher = pubsub_v1.PublisherClient()

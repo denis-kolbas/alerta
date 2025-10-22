@@ -6,6 +6,7 @@ export interface IntegrationConfig {
   description: string;
   category: string;
   href: string | null;
+  brandColor: string; // Brand color for charts, graphs, and visual elements
   // Image paths (store in public/integrations/)
   icon: string; // Large icon for cards (e.g., /integrations/braze-icon.svg)
   favicon: string; // Small favicon for tables (e.g., /integrations/braze-favicon.svg)
@@ -18,6 +19,7 @@ export const INTEGRATIONS: Record<string, IntegrationConfig> = {
     description: 'Customer engagement platform for personalized messaging across channels',
     category: 'Marketing Automation',
     href: '/dashboard/integrations/braze',
+    brandColor: '#5711e5',
     icon: '/integrations/braze-icon.png',
     favicon: '/integrations/braze-favicon.png',
   },
@@ -27,6 +29,7 @@ export const INTEGRATIONS: Record<string, IntegrationConfig> = {
     description: 'Email and SMS marketing platform for ecommerce businesses',
     category: 'Email Marketing',
     href: '/dashboard/integrations/klaviyo',
+    brandColor: '#f96353',
     icon: '/integrations/klaviyo-icon.png',
     favicon: '/integrations/klaviyo-favicon.png',
   },
@@ -36,6 +39,7 @@ export const INTEGRATIONS: Record<string, IntegrationConfig> = {
     description: 'Product analytics platform to understand user behavior and drive engagement',
     category: 'Analytics',
     href: null,
+    brandColor: '#7856FF',
     icon: '/integrations/mixpanel-icon.svg',
     favicon: '/integrations/mixpanel-favicon.svg',
   },
@@ -45,6 +49,7 @@ export const INTEGRATIONS: Record<string, IntegrationConfig> = {
     description: 'Web analytics service that tracks and reports website traffic and user behavior',
     category: 'Analytics',
     href: '/dashboard/integrations/google-analytics',
+    brandColor: '#F9AB00',
     icon: '/integrations/google-analytics-icon.png',
     favicon: '/integrations/google-analytics-favicon.png',
   },
@@ -104,4 +109,10 @@ export function IntegrationEmoji({ integrationId }: { integrationId: string }) {
     segment: '🎯',
   };
   return <span className="text-2xl">{emojis[integrationId] || '📦'}</span>;
+}
+
+// Get brand color for an integration (useful for charts and graphs)
+export function getIntegrationColor(integrationId: string): string {
+  const integration = INTEGRATIONS[integrationId];
+  return integration?.brandColor || '#6366f1'; // Fallback to purple-500
 }

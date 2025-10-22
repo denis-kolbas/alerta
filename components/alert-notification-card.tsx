@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, X, RotateCcw } from 'lucide-react';
-import { IntegrationFavicon } from '@/lib/integrations';
+import { IntegrationFavicon, getIntegrationColor } from '@/lib/integrations';
 import { formatDistanceToNow } from 'date-fns';
 import { updateAlertStatus } from '@/app/dashboard/alerts/actions';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
@@ -46,16 +46,21 @@ interface AlertNotificationCardProps {
   onStatusChange?: (id: number, status: 'active' | 'resolved' | 'dismissed') => void;
 }
 
-const chartConfig = {
-  count: {
-    label: 'Events',
-    color: 'var(--chart-1)',
-  },
-} satisfies ChartConfig;
-
 export function AlertNotificationCard({ alert, eventData, onResolve, onDismiss, onStatusChange }: AlertNotificationCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(alert.status || 'active');
+
+  // Get integration brand color for chart
+  const integrationColor = useMemo(() => {
+    return alert.integrationName ? getIntegrationColor(alert.integrationName) : '#6366f1';
+  }, [alert.integrationName]);
+
+  const chartConfig = useMemo(() => ({
+    count: {
+      label: 'Events',
+      color: integrationColor,
+    },
+  } satisfies ChartConfig), [integrationColor]);
 
   const handleStatusChange = async (newStatus: 'active' | 'resolved' | 'dismissed') => {
     setIsLoading(true);
@@ -197,8 +202,8 @@ export function AlertNotificationCard({ alert, eventData, onResolve, onDismiss, 
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id={`fill-${alert.id}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.1} />
+                    <stop offset="5%" stopColor={integrationColor} stopOpacity={0.8} />
+                    <stop offset="95%" stopColor={integrationColor} stopOpacity={0.1} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted" />
@@ -234,7 +239,7 @@ export function AlertNotificationCard({ alert, eventData, onResolve, onDismiss, 
                   dataKey="count"
                   type="monotone"
                   fill={`url(#fill-${alert.id})`}
-                  stroke="var(--chart-1)"
+                  stroke={integrationColor}
                   strokeWidth={2}
                 />
               </AreaChart>
