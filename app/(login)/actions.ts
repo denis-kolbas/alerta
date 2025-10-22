@@ -241,7 +241,7 @@ export const updateNotificationPreferences = validatedActionWithUser(
 );
 
 const removeTeamMemberSchema = z.object({
-  memberId: z.number()
+  memberId: z.coerce.number()
 });
 
 export const removeTeamMember = validatedActionWithUser(
@@ -252,6 +252,14 @@ export const removeTeamMember = validatedActionWithUser(
 
     if (!userWithTeam?.teamId) {
       return { error: 'User is not part of a team' };
+    }
+
+    // Check if user is an owner
+    const { isTeamOwner } = await import('@/lib/db/queries');
+    const userIsOwner = await isTeamOwner(user.id, userWithTeam.teamId);
+    
+    if (!userIsOwner) {
+      return { error: 'Only team owners can remove members' };
     }
 
     await db
@@ -286,6 +294,14 @@ export const inviteTeamMember = validatedActionWithUser(
 
     if (!userWithTeam?.teamId) {
       return { error: 'User is not part of a team' };
+    }
+
+    // Check if user is an owner
+    const { isTeamOwner } = await import('@/lib/db/queries');
+    const userIsOwner = await isTeamOwner(user.id, userWithTeam.teamId);
+    
+    if (!userIsOwner) {
+      return { error: 'Only team owners can invite members' };
     }
 
     const existingMember = await db

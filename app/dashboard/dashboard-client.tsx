@@ -76,6 +76,29 @@ export function DashboardClient({ integrationData, activeIntegrations, recentAle
     });
   }, [platformStats, integrationData, timeRange]);
 
+  if (activeIntegrations.length === 0) {
+    return (
+      <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="text-center space-y-4">
+              <h1 className="text-3xl font-bold tracking-tight">Welcome to Alerta</h1>
+              <p className="text-muted-foreground max-w-md">
+                Get started by connecting your first integration to monitor events and receive alerts.
+              </p>
+              <Button asChild size="lg" className="mt-4">
+                <Link href="/dashboard/integrations">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Connect Integration
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto space-y-6">

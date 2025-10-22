@@ -99,28 +99,85 @@ export async function getActivityLogs() {
     .limit(10);
 }
 
+export async function getCurrentTeamId() {
+  const user = await getUser();
+  if (!user) return null;
+
+  const cookieStore = await cookies();
+  const currentTeamCookie = cookieStore.get('current_team_id');
+  
+  if (currentTeamCookie) {
+    const teamId = parseInt(currentTeamCookie.value);
+    
+    // Verify user is a member of this team
+    const membership = await db
+      .select()
+      .from(teamMembers)
+      .where(
+        and(
+          eq(teamMembers.userId, user.id),
+          eq(teamMembers.teamId, teamId)
+        )
+      )
+      .limit(1);
+    
+    if (membership.length > 0) {
+      return teamId;
+    }
+  }
+
+  // Get user's first team as default
+  const userTeam = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(teamMembers)
+    .where(eq(teamMembers.userId, user.id))
+    .limit(1);
+
+  return userTeam[0]?.teamId || null;
+}
+
+export async function getUserTeamRole(userId: number, teamId: number): Promise<string | null> {
+  const membership = await db
+    .select({ role: teamMembers.role })
+    .from(teamMembers)
+    .where(
+      and(
+        eq(teamMembers.userId, userId),
+        eq(teamMembers.teamId, teamId)
+      )
+    )
+    .limit(1);
+
+  return membership[0]?.role || null;
+}
+
+export async function isTeamOwner(userId: number, teamId: number): Promise<boolean> {
+  const role = await getUserTeamRole(userId, teamId);
+  return role === 'owner';
+}
+
 export async function getTeamForUser() {
   const user = await getUser();
   if (!user) {
     return null;
   }
 
-  // Get the most recently joined team (or you could add logic to get a "primary" team)
-  const result = await db.query.teamMembers.findFirst({
-    where: eq(teamMembers.userId, user.id),
-    orderBy: (teamMembers, { desc }) => [desc(teamMembers.joinedAt)],
+  const currentTeamId = await getCurrentTeamId();
+  if (!currentTeamId) {
+    return null;
+  }
+
+  // Get the current team with members
+  const result = await db.query.teams.findFirst({
+    where: eq(teams.id, currentTeamId),
     with: {
-      team: {
+      teamMembers: {
         with: {
-          teamMembers: {
-            with: {
-              user: {
-                columns: {
-                  id: true,
-                  name: true,
-                  email: true
-                }
-              }
+          user: {
+            columns: {
+              id: true,
+              name: true,
+              email: true
             }
           }
         }
@@ -128,7 +185,7 @@ export async function getTeamForUser() {
     }
   });
 
-  return result?.team || null;
+  return result || null;
 }
 // Queries for your custom tables
 

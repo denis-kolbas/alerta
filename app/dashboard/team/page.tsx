@@ -1,10 +1,16 @@
 import { getTeamForUser, getUser } from '@/lib/db/queries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InviteTeamMember } from './invite-team-member';
 import { TeamMembersList } from './team-members-list';
+import { WorkspacesList } from './workspaces-list';
+import { TeamPageClient } from './team-page-client';
 
-export default async function TeamPage() {
+export default async function TeamPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const params = await searchParams;
   const teamData = await getTeamForUser();
   const currentUser = await getUser();
 
@@ -38,48 +44,12 @@ export default async function TeamPage() {
       </div>
 
       <div className="max-w-2xl mx-auto">
-        <Tabs defaultValue="team" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="team">Team</TabsTrigger>
-            <TabsTrigger value="billing">Plan & Billing</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="team" className="space-y-4">
-            <InviteTeamMember />
-
-            <Card>
-              <CardHeader>
-                <CardTitle>{teamData.name}</CardTitle>
-                <CardDescription>
-                  Manage your team members and their roles
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TeamMembersList 
-                  members={teamData.teamMembers} 
-                  currentUserId={currentUser?.id}
-                  currentUserRole={currentUserRole}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="billing">
-            <Card>
-              <CardHeader>
-                <CardTitle>Plan & Billing</CardTitle>
-                <CardDescription>
-                  Manage your subscription and billing information
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="py-12">
-                <div className="text-center text-muted-foreground">
-                  <p>Billing management coming soon</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        <TeamPageClient
+          defaultTab={params.tab || 'members'}
+          teamData={teamData}
+          currentUserId={currentUser?.id}
+          currentUserRole={currentUserRole}
+        />
       </div>
     </div>
   );
