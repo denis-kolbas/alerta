@@ -1,6 +1,6 @@
 import { stripe } from '../payments/stripe';
 import { db } from './drizzle';
-import { users, teams, teamMembers } from './schema';
+import { users, teams, organizations, organizationMembers } from './schema';
 import { hashPassword } from '@/lib/auth/session';
 
 async function createStripeProducts() {
@@ -57,18 +57,35 @@ async function seed() {
 
   console.log('Initial user created.');
 
-  const [team] = await db
-    .insert(teams)
+  // Create organization
+  const [organization] = await db
+    .insert(organizations)
     .values({
-      name: 'Test Team',
+      name: 'Test Organization',
     })
     .returning();
 
-  await db.insert(teamMembers).values({
-    teamId: team.id,
+  console.log('Initial organization created.');
+
+  // Add user to organization
+  await db.insert(organizationMembers).values({
     userId: user.id,
+    organizationId: organization.id,
     role: 'owner',
   });
+
+  console.log('User added to organization.');
+
+  // Create a workspace in the organization
+  const [team] = await db
+    .insert(teams)
+    .values({
+      name: 'Test Workspace',
+      organizationId: organization.id,
+    })
+    .returning();
+
+  console.log('Initial workspace created.');
 
   await createStripeProducts();
 }

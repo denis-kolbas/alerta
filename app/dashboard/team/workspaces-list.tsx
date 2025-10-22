@@ -52,8 +52,9 @@ export function WorkspacesList({}: WorkspacesListProps) {
 
   const teams = teamsData?.teams || [];
   const currentTeamId = teamsData?.currentTeamId;
-  const currentUserRole = teamsData?.currentUserRole;
-  const isOwner = currentUserRole === 'owner';
+  const organizationRole = teamsData?.organizationRole;
+  // Can create/delete workspaces if org owner or admin
+  const canManageWorkspaces = organizationRole === 'owner' || organizationRole === 'admin';
 
   const handleDeleteTeam = async (teamId: number) => {
     setIsLoading(true);
@@ -140,7 +141,7 @@ export function WorkspacesList({}: WorkspacesListProps) {
                 Manage the workspaces you belong to
               </CardDescription>
             </div>
-            {isOwner && (
+            {canManageWorkspaces && (
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Workspace
@@ -184,7 +185,7 @@ export function WorkspacesList({}: WorkspacesListProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {team.role === 'owner' && teams.length > 1 && (
+                    {canManageWorkspaces && teams.length > 1 && (
                       <Button
                         variant="ghost"
                         size="icon"

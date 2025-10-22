@@ -21,7 +21,13 @@ export function validatedAction<S extends z.ZodType<any, any>, T>(
   return async (formData: FormData) => {
     const result = schema.safeParse(Object.fromEntries(formData));
     if (!result.success) {
-      return { error: result.error.errors[0]?.message || 'Validation failed' };
+      const errors = result.error.errors;
+      if (errors && errors.length > 0) {
+        const firstError = errors[0];
+        // Just return the message without the field name for cleaner UX
+        return { error: firstError.message };
+      }
+      return { error: 'Validation failed' };
     }
 
     return action(result.data, formData);
@@ -34,7 +40,7 @@ type ValidatedActionWithUserFunction<S extends z.ZodType<any, any>, T> = (
   user: User
 ) => Promise<T>;
 
-export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
+export function validatedActionWithUser<S extends z.ZodType<any, unknown>, T>(
   schema: S,
   action: ValidatedActionWithUserFunction<S, T>
 ) {
@@ -46,7 +52,13 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
 
     const result = schema.safeParse(Object.fromEntries(formData));
     if (!result.success) {
-      return { error: result.error.errors[0]?.message || 'Validation failed' };
+      const errors = result.error.errors;
+      if (errors && errors.length > 0) {
+        const firstError = errors[0];
+        // Just return the message without the field name for cleaner UX
+        return { error: firstError.message };
+      }
+      return { error: 'Validation failed' };
     }
 
     return action(result.data, formData, user);

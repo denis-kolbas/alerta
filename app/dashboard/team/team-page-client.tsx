@@ -6,9 +6,28 @@ import { InviteTeamMember } from './invite-team-member';
 import { TeamMembersList } from './team-members-list';
 import { WorkspacesList } from './workspaces-list';
 
+interface TeamMember {
+  id: number;
+  role: string;
+  user: {
+    id: number;
+    name: string | null;
+    email: string;
+  };
+}
+
+interface TeamData {
+  name: string;
+  organization: {
+    id: number;
+    name: string;
+  };
+  organizationMembers: TeamMember[];
+}
+
 interface TeamPageClientProps {
   defaultTab: string;
-  teamData: any;
+  teamData: TeamData;
   currentUserId?: number;
   currentUserRole?: string;
 }
@@ -32,14 +51,14 @@ export function TeamPageClient({
 
         <Card>
           <CardHeader>
-            <CardTitle>{teamData.name}</CardTitle>
+            <CardTitle>{teamData.organization.name}</CardTitle>
             <CardDescription>
-              Manage your team members and their roles
+              Manage your organization members and their roles
             </CardDescription>
           </CardHeader>
           <CardContent>
             <TeamMembersList
-              members={teamData.teamMembers}
+              members={teamData.organizationMembers || []}
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
             />

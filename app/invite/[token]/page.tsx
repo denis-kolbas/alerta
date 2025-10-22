@@ -1,5 +1,5 @@
 import { db } from '@/lib/db/drizzle';
-import { invitations, teams } from '@/lib/db/schema';
+import { invitations } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       eq(invitations.status, 'pending')
     ),
     with: {
-      team: true,
+      organization: true,
       invitedBy: {
         columns: {
           name: true,
@@ -79,7 +79,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           <CardTitle>Accept Invitation</CardTitle>
           <CardDescription>
             {invitation.invitedBy.name || invitation.invitedBy.email} has invited you to join{' '}
-            <strong>{invitation.team.name}</strong>
+            <strong>{invitation.organization.name}</strong> as a {invitation.role}
           </CardDescription>
         </CardHeader>
         <CardContent>

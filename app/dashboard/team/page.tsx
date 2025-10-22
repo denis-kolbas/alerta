@@ -1,8 +1,5 @@
 import { getTeamForUser, getUser } from '@/lib/db/queries';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { InviteTeamMember } from './invite-team-member';
-import { TeamMembersList } from './team-members-list';
-import { WorkspacesList } from './workspaces-list';
+import { Card, CardContent } from '@/components/ui/card';
 import { TeamPageClient } from './team-page-client';
 
 export default async function TeamPage({
@@ -14,8 +11,8 @@ export default async function TeamPage({
   const teamData = await getTeamForUser();
   const currentUser = await getUser();
 
-  // Find current user's role in the team
-  const currentUserMembership = teamData?.teamMembers.find(
+  // Find current user's role in the organization
+  const currentUserMembership = teamData?.organizationMembers.find(
     (member) => member.user.id === currentUser?.id
   );
   const currentUserRole = currentUserMembership?.role;

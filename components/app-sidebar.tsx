@@ -27,7 +27,7 @@ const navItems = [
   { href: '/dashboard/alerts', icon: BarChart, label: 'Alerts' },
   { href: '/dashboard/alerts-2', icon: BarChart, label: 'Alerts 2' },
   { href: '/dashboard/integrations', icon: Plug, label: 'Integrations' },
-  { href: '/dashboard/team', icon: Users, label: 'Team' },
+  { href: '/dashboard/team', icon: Users, label: 'Organization' },
   { href: '/dashboard/account', icon: Settings, label: 'Account' },
   { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
 ];
@@ -39,7 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const teams = teamsData?.teams || [];
   const currentTeamId = teamsData?.currentTeamId || null;
-  const currentUserRole = teamsData?.currentUserRole || null;
+  const organizationRole = teamsData?.organizationRole || null;
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -47,7 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher 
           teams={teams} 
           currentTeamId={currentTeamId}
-          currentUserRole={currentUserRole}
+          organizationRole={organizationRole}
         />
       </SidebarHeader>
       <SidebarContent>

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/db/queries';
 import { db } from '@/lib/db/drizzle';
-import { teamMembers } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { teams, organizationMembers, organizations } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
@@ -19,20 +19,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 });
     }
 
-    // Verify user is a member of this team
-    const membership = await db
-      .select()
-      .from(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.userId, user.id),
-          eq(teamMembers.teamId, teamId)
-        )
-      )
+    // Verify user has access to this team via organization membership
+    const hasAccess = await db
+      .select({ id: teams.id })
+      .from(teams)
+      .innerJoin(organizations, eq(teams.organizationId, organizations.id))
+      .innerJoin(organizationMembers, eq(organizationMembers.organizationId, organizations.id))
+      .where(eq(organizationMembers.userId, user.id))
       .limit(1);
 
-    if (membership.length === 0) {
-      return NextResponse.json({ error: 'Not a member of this team' }, { status: 403 });
+    if (hasAccess.length === 0) {
+      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
     }
 
     // Set cookie for current team

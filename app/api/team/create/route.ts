@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/db/queries';
 import { db } from '@/lib/db/drizzle';
-import { teams, teamMembers, activityLogs, ActivityType } from '@/lib/db/schema';
+import { teams, activityLogs, ActivityType } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
@@ -12,38 +13,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is an owner of at least one team
-    const { isTeamOwner, getCurrentTeamId } = await import('@/lib/db/queries');
-    const currentTeamId = await getCurrentTeamId();
-    
-    if (currentTeamId) {
-      const userIsOwner = await isTeamOwner(user.id, currentTeamId);
-      if (!userIsOwner) {
-        return NextResponse.json({ 
-          error: 'Only workspace owners can create new workspaces' 
-        }, { status: 403 });
-      }
-    }
-    // If no current team, user has no teams yet, so allow creation (first workspace)
-
     const { name } = await request.json();
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Workspace name is required' }, { status: 400 });
     }
 
-    // Create the team
+    // Get user's organization and role
+    const { organizationMembers } = await import('@/lib/db/schema');
+    const userOrg = await db
+      .select({ 
+        organizationId: organizationMembers.organizationId,
+        role: organizationMembers.role 
+      })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, user.id))
+      .limit(1);
+
+    if (!userOrg[0]) {
+      return NextResponse.json({ error: 'User not in any organization' }, { status: 400 });
+    }
+
+    // Check if user is org owner or admin
+    if (userOrg[0].role !== 'owner' && userOrg[0].role !== 'admin') {
+      return NextResponse.json({ 
+        error: 'Only organization owners and admins can create workspaces' 
+      }, { status: 403 });
+    }
+
+    // Create the workspace
     const [newTeam] = await db
       .insert(teams)
-      .values({ name: name.trim() })
+      .values({ 
+        name: name.trim(),
+        organizationId: userOrg[0].organizationId
+      })
       .returning();
 
-    // Add user as owner
-    await db.insert(teamMembers).values({
-      userId: user.id,
-      teamId: newTeam.id,
-      role: 'owner',
-    });
+    // User already has access via organization membership
 
     // Log activity
     await db.insert(activityLogs).values({

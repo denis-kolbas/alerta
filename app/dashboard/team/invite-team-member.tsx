@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 
 export function InviteTeamMember() {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'member' | 'owner'>('member');
+  const [role, setRole] = useState<'member' | 'admin'>('member');
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -40,8 +40,8 @@ export function InviteTeamMember() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invite Team Member</CardTitle>
-        <CardDescription>Send an invitation to join your team</CardDescription>
+        <CardTitle>Invite Organization Member</CardTitle>
+        <CardDescription>Invite someone to your organization. They'll have access to all workspaces.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -59,13 +59,13 @@ export function InviteTeamMember() {
             </div>
             <div className="space-y-2 md:w-[200px]">
               <Label htmlFor="role">Role</Label>
-              <Select value={role} onValueChange={(value: 'member' | 'owner') => setRole(value)}>
+              <Select value={role} onValueChange={(value: 'member' | 'admin') => setRole(value)}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>

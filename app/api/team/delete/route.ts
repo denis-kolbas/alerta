@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUser, isTeamOwner } from '@/lib/db/queries';
+import { getUser } from '@/lib/db/queries';
 import { db } from '@/lib/db/drizzle';
-import { teams, teamMembers } from '@/lib/db/schema';
+import { teams, organizationMembers, organizations } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
@@ -19,24 +19,31 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 });
     }
 
-    // Check if user is an owner of this team
-    const userIsOwner = await isTeamOwner(user.id, teamId);
-    
-    if (!userIsOwner) {
+    // Check if user is org owner or admin
+    const userOrg = await db
+      .select({ 
+        role: organizationMembers.role,
+        organizationId: organizationMembers.organizationId 
+      })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, user.id))
+      .limit(1);
+
+    if (!userOrg[0] || (userOrg[0].role !== 'owner' && userOrg[0].role !== 'admin')) {
       return NextResponse.json({ 
-        error: 'Only team owners can delete teams' 
+        error: 'Only organization owners and admins can delete workspaces' 
       }, { status: 403 });
     }
 
-    // Check if user has other teams
+    // Check if user has other teams in their organization
     const userTeams = await db
-      .select({ teamId: teamMembers.teamId })
-      .from(teamMembers)
-      .where(eq(teamMembers.userId, user.id));
+      .select({ id: teams.id })
+      .from(teams)
+      .where(eq(teams.organizationId, userOrg[0].organizationId));
 
     if (userTeams.length <= 1) {
       return NextResponse.json({ 
-        error: 'Cannot delete your only team' 
+        error: 'Cannot delete your only workspace' 
       }, { status: 400 });
     }
 
@@ -45,9 +52,9 @@ export async function DELETE(request: NextRequest) {
     const currentTeamCookie = cookieStore.get('current_team_id');
     
     if (currentTeamCookie && parseInt(currentTeamCookie.value) === teamId) {
-      const otherTeam = userTeams.find(t => t.teamId !== teamId);
+      const otherTeam = userTeams.find(t => t.id !== teamId);
       if (otherTeam) {
-        cookieStore.set('current_team_id', otherTeam.teamId.toString(), {
+        cookieStore.set('current_team_id', otherTeam.id.toString(), {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',

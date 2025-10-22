@@ -1,6 +1,6 @@
 import { desc, and, eq, isNull, gte, inArray } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users, clients, eventData, alerts } from './schema';
+import { activityLogs, teams, users, clients, eventData, alerts, organizationMembers, organizations } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 
@@ -65,13 +65,17 @@ export async function updateTeamSubscription(
 }
 
 export async function getUserWithTeam(userId: number) {
+  // Get user's first workspace via organization membership
   const result = await db
     .select({
       user: users,
-      teamId: teamMembers.teamId
+      teamId: teams.id,
+      organizationId: organizations.id
     })
     .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
+    .leftJoin(organizationMembers, eq(users.id, organizationMembers.userId))
+    .leftJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+    .leftJoin(teams, eq(teams.organizationId, organizations.id))
     .where(eq(users.id, userId))
     .limit(1);
 
@@ -109,41 +113,54 @@ export async function getCurrentTeamId() {
   if (currentTeamCookie) {
     const teamId = parseInt(currentTeamCookie.value);
     
-    // Verify user is a member of this team
-    const membership = await db
-      .select()
-      .from(teamMembers)
+    // Verify user has access to this team via organization membership
+    const hasAccess = await db
+      .select({ id: teams.id })
+      .from(teams)
+      .innerJoin(organizations, eq(teams.organizationId, organizations.id))
+      .innerJoin(organizationMembers, eq(organizationMembers.organizationId, organizations.id))
       .where(
         and(
-          eq(teamMembers.userId, user.id),
-          eq(teamMembers.teamId, teamId)
+          eq(organizationMembers.userId, user.id),
+          eq(teams.id, teamId)
         )
       )
       .limit(1);
     
-    if (membership.length > 0) {
+    if (hasAccess.length > 0) {
       return teamId;
     }
   }
 
-  // Get user's first team as default
+  // Get user's first team as default (via organization)
   const userTeam = await db
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(eq(teamMembers.userId, user.id))
+    .select({ teamId: teams.id })
+    .from(organizationMembers)
+    .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+    .innerJoin(teams, eq(teams.organizationId, organizations.id))
+    .where(eq(organizationMembers.userId, user.id))
     .limit(1);
 
   return userTeam[0]?.teamId || null;
 }
 
 export async function getUserTeamRole(userId: number, teamId: number): Promise<string | null> {
+  // Get organization role instead of team role
+  const team = await db
+    .select({ organizationId: teams.organizationId })
+    .from(teams)
+    .where(eq(teams.id, teamId))
+    .limit(1);
+
+  if (!team[0]) return null;
+
   const membership = await db
-    .select({ role: teamMembers.role })
-    .from(teamMembers)
+    .select({ role: organizationMembers.role })
+    .from(organizationMembers)
     .where(
       and(
-        eq(teamMembers.userId, userId),
-        eq(teamMembers.teamId, teamId)
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.organizationId, team[0].organizationId)
       )
     )
     .limit(1);
@@ -167,25 +184,43 @@ export async function getTeamForUser() {
     return null;
   }
 
-  // Get the current team with members
-  const result = await db.query.teams.findFirst({
+  // Get the current team with organization
+  const team = await db.query.teams.findFirst({
     where: eq(teams.id, currentTeamId),
     with: {
-      teamMembers: {
-        with: {
-          user: {
-            columns: {
-              id: true,
-              name: true,
-              email: true
-            }
-          }
+      organization: true
+    }
+  });
+
+  if (!team) {
+    return null;
+  }
+
+  // Get organization members instead of team members
+  const { organizationMembers: orgMembersTable } = await import('./schema');
+  const orgMembers = await db.query.organizationMembers.findMany({
+    where: eq(orgMembersTable.organizationId, team.organizationId),
+    with: {
+      user: {
+        columns: {
+          id: true,
+          name: true,
+          email: true
         }
       }
     }
   });
 
-  return result || null;
+  // Transform to match expected structure
+  return {
+    ...team,
+    organizationMembers: orgMembers.map(member => ({
+      id: member.id,
+      role: member.role,
+      joinedAt: member.joinedAt,
+      user: member.user
+    }))
+  };
 }
 // Queries for your custom tables
 

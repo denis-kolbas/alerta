@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/db/drizzle';
-import { users, invitations, teamMembers, activityLogs, ActivityType } from '@/lib/db/schema';
+import { users, invitations, organizationMembers, activityLogs, ActivityType, teams } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
@@ -53,22 +53,22 @@ export async function acceptInvitation(formData: FormData) {
   });
 
   if (existingUser) {
-    // User exists, just add them to the team
-    const existingMembership = await db.query.teamMembers.findFirst({
+    // User exists, just add them to the organization
+    const existingMembership = await db.query.organizationMembers.findFirst({
       where: and(
-        eq(teamMembers.userId, existingUser.id),
-        eq(teamMembers.teamId, invitation.teamId)
+        eq(organizationMembers.userId, existingUser.id),
+        eq(organizationMembers.organizationId, invitation.organizationId)
       ),
     });
 
     if (existingMembership) {
-      return { error: 'You are already a member of this team' };
+      return { error: 'You are already a member of this organization' };
     }
 
-    // Add user to team
-    await db.insert(teamMembers).values({
+    // Add user to organization (gives access to all workspaces)
+    await db.insert(organizationMembers).values({
       userId: existingUser.id,
-      teamId: invitation.teamId,
+      organizationId: invitation.organizationId,
       role: invitation.role,
     });
 
@@ -78,13 +78,19 @@ export async function acceptInvitation(formData: FormData) {
       .set({ status: 'accepted' })
       .where(eq(invitations.id, invitation.id));
 
-    // Log activity
-    await db.insert(activityLogs).values({
-      teamId: invitation.teamId,
-      userId: existingUser.id,
-      action: ActivityType.ACCEPT_INVITATION,
-      ipAddress: '',
+    // Log activity (use first workspace in org)
+    const firstWorkspace = await db.query.teams.findFirst({
+      where: eq(teams.organizationId, invitation.organizationId),
     });
+
+    if (firstWorkspace) {
+      await db.insert(activityLogs).values({
+        teamId: firstWorkspace.id,
+        userId: existingUser.id,
+        action: ActivityType.ACCEPT_INVITATION,
+        ipAddress: '',
+      });
+    }
 
     // Set session
     await setSession(existingUser);
@@ -103,10 +109,10 @@ export async function acceptInvitation(formData: FormData) {
     })
     .returning();
 
-  // Add user to team
-  await db.insert(teamMembers).values({
+  // Add user to organization (gives access to all workspaces)
+  await db.insert(organizationMembers).values({
     userId: newUser.id,
-    teamId: invitation.teamId,
+    organizationId: invitation.organizationId,
     role: invitation.role,
   });
 
@@ -116,13 +122,19 @@ export async function acceptInvitation(formData: FormData) {
     .set({ status: 'accepted' })
     .where(eq(invitations.id, invitation.id));
 
-  // Log activity
-  await db.insert(activityLogs).values({
-    teamId: invitation.teamId,
-    userId: newUser.id,
-    action: ActivityType.ACCEPT_INVITATION,
-    ipAddress: '',
+  // Log activity (use first workspace in org)
+  const firstWorkspace = await db.query.teams.findFirst({
+    where: eq(teams.organizationId, invitation.organizationId),
   });
+
+  if (firstWorkspace) {
+    await db.insert(activityLogs).values({
+      teamId: firstWorkspace.id,
+      userId: newUser.id,
+      action: ActivityType.ACCEPT_INVITATION,
+      ipAddress: '',
+    });
+  }
 
   // Set session
   await setSession(newUser);

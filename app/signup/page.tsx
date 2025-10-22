@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function SignUpPage() {
+export default function SignupPage() {
   redirect('/register');
 }
 

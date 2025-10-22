@@ -42,16 +42,16 @@ interface Team {
 interface TeamSwitcherProps {
   teams: Team[];
   currentTeamId: number | null;
-  currentUserRole: string | null;
+  organizationRole: string | null;
   onTeamChange?: (teamId: number) => void;
 }
 
-export function TeamSwitcher({ teams, currentTeamId, currentUserRole, onTeamChange }: TeamSwitcherProps) {
+export function TeamSwitcher({ teams, currentTeamId, organizationRole, onTeamChange }: TeamSwitcherProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const currentTeam = teams.find(t => t.id === currentTeamId);
-  const isOwner = currentUserRole === 'owner';
+  const canManageWorkspaces = organizationRole === 'owner' || organizationRole === 'admin';
   const { state } = useSidebar();
 
   const handleTeamSwitch = async (teamId: number) => {
@@ -183,7 +183,7 @@ export function TeamSwitcher({ teams, currentTeamId, currentUserRole, onTeamChan
               />
             </DropdownMenuItem>
           ))}
-          {isOwner && (
+          {canManageWorkspaces && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
@@ -191,7 +191,7 @@ export function TeamSwitcher({ teams, currentTeamId, currentUserRole, onTeamChan
                 onSelect={() => setShowCreateDialog(true)}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create team
+                Create workspace
               </DropdownMenuItem>
             </>
           )}

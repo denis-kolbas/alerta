@@ -7,12 +7,13 @@ import {
   User,
   users,
   teams,
-  teamMembers,
+  organizations,
+  organizationMembers,
   activityLogs,
   invitations,
   type NewUser,
-  type NewTeam,
-  type NewTeamMember,
+  type NewOrganization,
+  type NewOrganizationMember,
   type NewActivityLog,
   ActivityType
 } from '@/lib/db/schema';
@@ -46,43 +47,54 @@ async function logActivity(
 }
 
 const signInSchema = z.object({
-  email: z.string().email().min(3).max(255),
-  password: z.string().min(8).max(100)
+  email: z.string().email('Please enter a valid email address').min(3).max(255),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(100)
 });
 
 export const signIn = validatedAction(signInSchema, async (data, formData) => {
   const { email, password } = data;
 
-  const userWithTeam = await db
-    .select({
-      user: users,
-      team: teams
-    })
+  console.log('Sign in attempt for:', email);
+
+  // Just get the user - no need to join teams
+  const foundUsers = await db
+    .select()
     .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
-    .leftJoin(teams, eq(teamMembers.teamId, teams.id))
     .where(eq(users.email, email))
     .limit(1);
 
-  if (userWithTeam.length === 0) {
+  if (foundUsers.length === 0) {
+    console.log('User not found');
     return { error: 'Invalid email or password. Please try again.' };
   }
 
-  const { user: foundUser, team: foundTeam } = userWithTeam[0];
+  const foundUser = foundUsers[0];
 
   const isPasswordValid = await comparePasswords(
     password,
     foundUser.passwordHash
   );
 
+  console.log('Password valid:', isPasswordValid);
+
   if (!isPasswordValid) {
     return { error: 'Invalid email or password. Please try again.' };
   }
 
-  await Promise.all([
-    setSession(foundUser),
-    logActivity(foundTeam?.id, foundUser.id, ActivityType.SIGN_IN)
-  ]);
+  await setSession(foundUser);
+  
+  // Log activity to user's first workspace (if they have one)
+  const userWorkspace = await db
+    .select({ teamId: teams.id })
+    .from(organizationMembers)
+    .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+    .innerJoin(teams, eq(teams.organizationId, organizations.id))
+    .where(eq(organizationMembers.userId, foundUser.id))
+    .limit(1);
+
+  if (userWorkspace[0]) {
+    await logActivity(userWorkspace[0].teamId, foundUser.id, ActivityType.SIGN_IN);
+  }
 
   redirect('/dashboard');
 });
@@ -90,11 +102,11 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
-  companyName: z.string().min(1, 'Company name is required')
+  organizationName: z.string().min(1, 'Organization name is required')
 });
 
 export const signUp = validatedAction(signUpSchema, async (data) => {
-  const { email, password, companyName } = data;
+  const { email, password, organizationName } = data;
 
   const existingUser = await db
     .select()
@@ -120,27 +132,35 @@ export const signUp = validatedAction(signUpSchema, async (data) => {
     return { error: 'Failed to create user. Please try again.' };
   }
 
-  const newTeam: NewTeam = {
-    name: companyName
-  };
+  // Create organization
+  const { organizations, organizationMembers } = await import('@/lib/db/schema');
+  const [createdOrg] = await db.insert(organizations).values({
+    name: organizationName
+  }).returning();
 
-  const [createdTeam] = await db.insert(teams).values(newTeam).returning();
+  if (!createdOrg) {
+    return { error: 'Failed to create organization. Please try again.' };
+  }
+
+  // Add user as organization owner
+  await db.insert(organizationMembers).values({
+    userId: createdUser.id,
+    organizationId: createdOrg.id,
+    role: 'owner'
+  });
+
+  // Create first workspace
+  const [createdTeam] = await db.insert(teams).values({
+    name: `${organizationName} Workspace`,
+    organizationId: createdOrg.id
+  }).returning();
 
   if (!createdTeam) {
-    return { error: 'Failed to create team. Please try again.' };
+    return { error: 'Failed to create workspace. Please try again.' };
   }
-  
-  const teamToUse = createdTeam;
-
-  const newTeamMember: NewTeamMember = {
-    userId: createdUser.id,
-    teamId: teamToUse.id,
-    role: 'owner'
-  };
 
   await Promise.all([
-    db.insert(teamMembers).values(newTeamMember),
-    logActivity(teamToUse.id, createdUser.id, ActivityType.SIGN_UP),
+    logActivity(createdTeam.id, createdUser.id, ActivityType.SIGN_UP),
     setSession(createdUser)
   ]);
 
@@ -254,22 +274,47 @@ export const removeTeamMember = validatedActionWithUser(
       return { error: 'User is not part of a team' };
     }
 
-    // Check if user is an owner
-    const { isTeamOwner } = await import('@/lib/db/queries');
-    const userIsOwner = await isTeamOwner(user.id, userWithTeam.teamId);
+    // Check if user is org owner/admin
+    const { organizationMembers, teams: teamsTable } = await import('@/lib/db/schema');
     
-    if (!userIsOwner) {
-      return { error: 'Only team owners can remove members' };
+    // Get the organization ID from the team
+    const team = await db.select({ organizationId: teamsTable.organizationId })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, userWithTeam.teamId))
+      .limit(1);
+
+    if (!team[0]) {
+      return { error: 'Team not found' };
     }
 
+    const orgRole = await db.select({ role: organizationMembers.role })
+      .from(organizationMembers)
+      .where(and(
+        eq(organizationMembers.userId, user.id),
+        eq(organizationMembers.organizationId, team[0].organizationId)
+      ))
+      .limit(1);
+
+    const isOrgOwnerOrAdmin = orgRole[0]?.role === 'owner' || orgRole[0]?.role === 'admin';
+    
+    if (!isOrgOwnerOrAdmin) {
+      return { error: 'Only organization owners or admins can remove members' };
+    }
+
+    // Get the member to remove
+    const memberToRemove = await db.select({ userId: organizationMembers.userId })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.id, memberId))
+      .limit(1);
+
+    if (!memberToRemove[0]) {
+      return { error: 'Member not found' };
+    }
+
+    // Remove from organization (this will cascade to team_members)
     await db
-      .delete(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.id, memberId),
-          eq(teamMembers.teamId, userWithTeam.teamId)
-        )
-      );
+      .delete(organizationMembers)
+      .where(eq(organizationMembers.id, memberId));
 
     await logActivity(
       userWithTeam.teamId,
@@ -277,44 +322,55 @@ export const removeTeamMember = validatedActionWithUser(
       ActivityType.REMOVE_TEAM_MEMBER
     );
 
-    return { success: 'Team member removed successfully' };
+    return { success: 'Organization member removed successfully' };
   }
 );
 
 const inviteTeamMemberSchema = z.object({
   email: z.string().email('Invalid email address'),
-  role: z.enum(['member', 'owner'])
+  role: z.enum(['member', 'admin'])
 });
 
 export const inviteTeamMember = validatedActionWithUser(
   inviteTeamMemberSchema,
   async (data, _, user) => {
     const { email, role } = data;
-    const userWithTeam = await getUserWithTeam(user.id);
 
-    if (!userWithTeam?.teamId) {
-      return { error: 'User is not part of a team' };
+    // Get user's organization
+    const { organizationMembers, organizations } = await import('@/lib/db/schema');
+    const userOrg = await db
+      .select({ 
+        organizationId: organizationMembers.organizationId,
+        role: organizationMembers.role 
+      })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, user.id))
+      .limit(1);
+
+    if (!userOrg[0]) {
+      return { error: 'User is not part of an organization' };
     }
 
-    // Check if user is an owner
-    const { isTeamOwner } = await import('@/lib/db/queries');
-    const userIsOwner = await isTeamOwner(user.id, userWithTeam.teamId);
-    
-    if (!userIsOwner) {
-      return { error: 'Only team owners can invite members' };
+    // Check if user is org owner or admin
+    if (userOrg[0].role !== 'owner' && userOrg[0].role !== 'admin') {
+      return { error: 'Only organization owners and admins can invite members' };
     }
 
+    // Check if user already in organization
     const existingMember = await db
       .select()
-      .from(users)
-      .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
+      .from(organizationMembers)
+      .innerJoin(users, eq(organizationMembers.userId, users.id))
       .where(
-        and(eq(users.email, email), eq(teamMembers.teamId, userWithTeam.teamId))
+        and(
+          eq(users.email, email),
+          eq(organizationMembers.organizationId, userOrg[0].organizationId)
+        )
       )
       .limit(1);
 
     if (existingMember.length > 0) {
-      return { error: 'User is already a member of this team' };
+      return { error: 'User is already a member of this organization' };
     }
 
     // Check for existing pending invitation
@@ -324,7 +380,7 @@ export const inviteTeamMember = validatedActionWithUser(
       .where(
         and(
           eq(invitations.email, email),
-          eq(invitations.teamId, userWithTeam.teamId),
+          eq(invitations.organizationId, userOrg[0].organizationId),
           eq(invitations.status, 'pending')
         )
       )
@@ -337,11 +393,16 @@ export const inviteTeamMember = validatedActionWithUser(
     // Generate unique token
     const token = crypto.randomBytes(32).toString('hex');
 
+    // Get organization info
+    const organization = await db.query.organizations.findFirst({
+      where: eq(organizations.id, userOrg[0].organizationId),
+    });
+
     // Create invitation
     const [invitation] = await db
       .insert(invitations)
       .values({
-        teamId: userWithTeam.teamId,
+        organizationId: userOrg[0].organizationId,
         email,
         role,
         invitedBy: user.id,
@@ -350,17 +411,12 @@ export const inviteTeamMember = validatedActionWithUser(
       })
       .returning();
 
-    // Get team info for email
-    const team = await db.query.teams.findFirst({
-      where: eq(teams.id, userWithTeam.teamId),
-    });
-
     // Send invitation email
     const invitationUrl = `${process.env.BASE_URL}/invite/${token}`;
     const emailResult = await sendTeamInvitationEmail({
       to: email,
       inviterName: user.name || user.email,
-      teamName: team?.name || 'the team',
+      teamName: organization?.name || 'the organization',
       invitationUrl,
     });
 
@@ -370,11 +426,20 @@ export const inviteTeamMember = validatedActionWithUser(
       return { error: 'Failed to send invitation email. Please try again.' };
     }
 
-    await logActivity(
-      userWithTeam.teamId,
-      user.id,
-      ActivityType.INVITE_TEAM_MEMBER
-    );
+    // Log activity (use first workspace for activity log)
+    const firstWorkspace = await db
+      .select({ id: teams.id })
+      .from(teams)
+      .where(eq(teams.organizationId, userOrg[0].organizationId))
+      .limit(1);
+
+    if (firstWorkspace[0]) {
+      await logActivity(
+        firstWorkspace[0].id,
+        user.id,
+        ActivityType.INVITE_TEAM_MEMBER
+      );
+    }
 
     return { success: 'Invitation sent successfully' };
   }

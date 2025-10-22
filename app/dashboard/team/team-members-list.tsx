@@ -29,18 +29,18 @@ type TeamMember = {
 };
 
 export function TeamMembersList({ 
-  members, 
+  members = [], 
   currentUserId,
   currentUserRole,
 }: { 
-  members: TeamMember[];
+  members?: TeamMember[];
   currentUserId?: number;
   currentUserRole?: string;
 }) {
   const [removeMemberId, setRemoveMemberId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const memberToRemove = members.find(m => m.id === removeMemberId);
+  const memberToRemove = members?.find(m => m.id === removeMemberId);
 
   async function handleRemove() {
     if (!removeMemberId) return;
@@ -69,6 +69,14 @@ export function TeamMembersList({
   }
 
   const isCurrentUserOwner = currentUserRole === 'owner';
+
+  if (!members || members.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>No members found</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
