@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InviteTeamMember } from './invite-team-member';
 import { TeamMembersList } from './team-members-list';
 import { WorkspacesList } from './workspaces-list';
+import { BillingTab } from './billing-tab';
 
 interface TeamMember {
   id: number;
@@ -71,19 +72,15 @@ export function TeamPageClient({
       </TabsContent>
 
       <TabsContent value="billing">
-        <Card>
-          <CardHeader>
-            <CardTitle>Plan & Billing</CardTitle>
-            <CardDescription>
-              Manage your subscription and billing information
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">
-              <p>Billing management coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
+        <BillingTab
+          currentPlan={teamData.organization?.planName || 'Free'}
+          subscriptionStatus={teamData.organization?.subscriptionStatus}
+          subscriptionEndDate={teamData.organization?.subscriptionEndDate}
+          cancelAtPeriodEnd={teamData.organization?.cancelAtPeriodEnd}
+          billingInterval={teamData.organization?.billingInterval}
+          billingAmount={teamData.organization?.billingAmount}
+          currentUserRole={currentUserRole}
+        />
       </TabsContent>
     </Tabs>
   );

@@ -38,6 +38,10 @@ export const organizations = pgTable('organizations', {
   stripeProductId: text('stripe_product_id'),
   planName: varchar('plan_name', { length: 50 }),
   subscriptionStatus: varchar('subscription_status', { length: 20 }),
+  subscriptionEndDate: timestamp('subscription_end_date'),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false),
+  billingInterval: varchar('billing_interval', { length: 20 }),
+  billingAmount: integer('billing_amount'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
