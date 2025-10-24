@@ -68,6 +68,12 @@ export async function POST(request: NextRequest) {
         organizationId: org[0].id.toString(),
         userId: user.id.toString(),
       },
+      subscription_data: {
+        metadata: {
+          organizationId: org[0].id.toString(),
+          userId: user.id.toString(),
+        },
+      },
     });
 
     return NextResponse.json({ url: session.url });

@@ -34,48 +34,90 @@ export async function POST(request: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const organizationId = session.metadata?.organizationId;
+        const customerId = session.customer as string;
+
+        console.log('=== CHECKOUT SESSION COMPLETED ===');
+        console.log('Organization ID:', organizationId);
+        console.log('Customer ID:', customerId);
 
         if (!organizationId) {
           console.error('No organizationId in session metadata');
           break;
         }
 
-        // Update organization with customer ID
+        if (!customerId) {
+          console.error('No customer ID in session');
+          break;
+        }
+
+        // Update organization with customer ID immediately
         await db
           .update(organizations)
           .set({
-            stripeCustomerId: session.customer as string,
+            stripeCustomerId: customerId,
             updatedAt: new Date(),
           })
           .where(eq(organizations.id, parseInt(organizationId)));
 
+        console.log('✅ Updated organization with customer ID');
+        console.log('=== END CHECKOUT SESSION ===\n');
 
         break;
       }
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
+        try {
+          const subscription = event.data.object as Stripe.Subscription;
+          const customerId = subscription.customer as string;
 
+          console.log('=== SUBSCRIPTION EVENT ===');
+          console.log('Event type:', event.type);
+          console.log('Subscription ID:', subscription.id);
+          console.log('Customer ID:', customerId);
 
+          // Find organization by customer ID OR by subscription metadata
+          let org = await db
+            .select()
+            .from(organizations)
+            .where(eq(organizations.stripeCustomerId, customerId))
+            .limit(1);
 
-        // Find organization by customer ID
-        const org = await db
-          .select()
-          .from(organizations)
-          .where(eq(organizations.stripeCustomerId, customerId))
-          .limit(1);
+          // If not found by customer ID, try to find by subscription metadata
+          if (!org[0] && subscription.metadata?.organizationId) {
+            console.log('Organization not found by customer ID, trying metadata...');
+            org = await db
+              .select()
+              .from(organizations)
+              .where(eq(organizations.id, parseInt(subscription.metadata.organizationId)))
+              .limit(1);
+            
+            // If found, update with customer ID
+            if (org[0]) {
+              console.log('Found organization by metadata, updating customer ID...');
+              await db
+                .update(organizations)
+                .set({
+                  stripeCustomerId: customerId,
+                  updatedAt: new Date(),
+                })
+                .where(eq(organizations.id, org[0].id));
+            }
+          }
 
-        if (!org[0]) {
-          console.error('Organization not found for customer:', customerId);
-          break;
-        }
+          if (!org[0]) {
+            console.error('❌ Organization not found for customer:', customerId);
+            break;
+          }
+
+          console.log('Found organization:', org[0].id, org[0].name);
 
         // Fetch full subscription details from Stripe (webhook data might be incomplete)
         const fullSubscription = await stripe.subscriptions.retrieve(subscription.id, {
           expand: ['items.data.price']
         });
+
+        console.log('Full subscription retrieved from Stripe API');
 
         // Get price details
         const priceId = fullSubscription.items.data[0]?.price.id;
@@ -89,16 +131,31 @@ export async function POST(request: NextRequest) {
           planName = 'Pro';
         }
 
-        // Store period end date (from subscription item, as it's not on root object)
+        // Get billing details
+        // Get period end from subscription items (where it actually lives)
         const currentPeriodEnd = fullSubscription.items.data[0]?.current_period_end;
-        const subscriptionEndDate = currentPeriodEnd 
-          ? new Date(currentPeriodEnd * 1000)
+        const cancelAt = (fullSubscription as unknown as { cancel_at: number | null }).cancel_at;
+        const cancelAtPeriodEnd = (fullSubscription as unknown as { cancel_at_period_end: boolean }).cancel_at_period_end;
+        
+        // Use cancel_at if subscription is cancelled, otherwise use current_period_end
+        const subscriptionEndDate = (cancelAt || currentPeriodEnd) 
+          ? new Date((cancelAt || currentPeriodEnd) * 1000)
           : null;
 
         // Get billing details
         const price = fullSubscription.items.data[0]?.price;
         const billingInterval = price?.recurring?.interval || null;
         const billingAmount = price?.unit_amount || null;
+
+        // Log the subscription data
+        console.log('Extracted subscription data:', {
+          id: fullSubscription.id,
+          status: fullSubscription.status,
+          current_period_end: currentPeriodEnd,
+          cancel_at: cancelAt,
+          cancel_at_period_end: cancelAtPeriodEnd,
+          final_end_date: subscriptionEndDate?.toISOString()
+        });
 
         // Update organization subscription
         await db
@@ -109,13 +166,20 @@ export async function POST(request: NextRequest) {
             planName,
             subscriptionStatus: fullSubscription.status,
             subscriptionEndDate,
-            cancelAtPeriodEnd: fullSubscription.cancel_at_period_end || false,
+            cancelAtPeriodEnd: cancelAtPeriodEnd || false,
             billingInterval,
             billingAmount,
             updatedAt: new Date(),
           })
           .where(eq(organizations.id, org[0].id));
 
+          console.log('✅ Successfully updated organization with subscription data');
+          console.log('Saved end date:', subscriptionEndDate?.toISOString());
+          console.log('=== END SUBSCRIPTION EVENT ===\n');
+        } catch (error) {
+          console.error('❌ Error processing subscription event:', error);
+          throw error;
+        }
 
         break;
       }

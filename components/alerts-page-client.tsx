@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { AlertCircle, CheckCircle2, XCircle, Search } from 'lucide-react';
 import { AlertsTable } from './alerts-table';
 import { AlertEventChart } from './alert-event-chart';
+import { NotificationBanner } from './notification-banner';
 import {
   Select,
   SelectContent,
@@ -134,50 +135,32 @@ export function AlertsPageClient({ alerts, platforms }: AlertsPageClientProps) {
   return (
     <div className="space-y-6">
       {/* Status Summary */}
-      <Card className="py-0">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            {stats.active === 0 ? (
-              <>
-                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold">All clear!</h3>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    No active alerts. Everything is running smoothly. Sit back and relax.
-                  </p>
-                </div>
-              </>
-            ) : stats.critical > 0 ? (
-              <>
-                <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-                <div className="flex-1">
-                  <h3 className="font-semibold">
-                    {stats.critical} critical {stats.critical === 1 ? 'alert' : 'alerts'} require attention
-                  </h3>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {mostRecentCritical && (
-                      <>Pay attention to <span className="font-medium">{mostRecentCritical.eventName}</span> from {mostRecentCritical.integrationName}. </>
-                    )}
-                    {stats.active > stats.critical && `Plus ${stats.active - stats.critical} other active ${stats.active - stats.critical === 1 ? 'alert' : 'alerts'}.`}
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold">
-                    {stats.active} active {stats.active === 1 ? 'alert' : 'alerts'}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    You have warnings that should be reviewed. No critical issues detected.
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {stats.active === 0 ? (
+        <NotificationBanner
+          icon={CheckCircle2}
+          title="All clear!"
+          description="No active alerts. Everything is running smoothly. Sit back and relax."
+          variant="neutral"
+        />
+      ) : stats.critical > 0 ? (
+        <NotificationBanner
+          icon={XCircle}
+          title={`${stats.critical} critical ${stats.critical === 1 ? 'alert' : 'alerts'} require attention`}
+          description={
+            mostRecentCritical
+              ? `Pay attention to ${mostRecentCritical.eventName} from ${mostRecentCritical.integrationName}.${stats.active > stats.critical ? ` Plus ${stats.active - stats.critical} other active ${stats.active - stats.critical === 1 ? 'alert' : 'alerts'}.` : ''}`
+              : undefined
+          }
+          variant="neutral"
+        />
+      ) : (
+        <NotificationBanner
+          icon={AlertCircle}
+          title={`${stats.active} active ${stats.active === 1 ? 'alert' : 'alerts'}`}
+          description="You have warnings that should be reviewed. No critical issues detected."
+          variant="neutral"
+        />
+      )}
 
       {/* Filters */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center">

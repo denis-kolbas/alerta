@@ -22,6 +22,12 @@ interface TeamData {
   organization: {
     id: number;
     name: string;
+    planName: string | null;
+    subscriptionStatus: string | null;
+    subscriptionEndDate: Date | null;
+    cancelAtPeriodEnd: boolean | null;
+    billingInterval: string | null;
+    billingAmount: number | null;
   };
   organizationMembers: TeamMember[];
 }
@@ -74,11 +80,11 @@ export function TeamPageClient({
       <TabsContent value="billing">
         <BillingTab
           currentPlan={teamData.organization?.planName || 'Free'}
-          subscriptionStatus={teamData.organization?.subscriptionStatus}
-          subscriptionEndDate={teamData.organization?.subscriptionEndDate}
-          cancelAtPeriodEnd={teamData.organization?.cancelAtPeriodEnd}
-          billingInterval={teamData.organization?.billingInterval}
-          billingAmount={teamData.organization?.billingAmount}
+          subscriptionStatus={teamData.organization?.subscriptionStatus ?? undefined}
+          subscriptionEndDate={teamData.organization?.subscriptionEndDate ?? undefined}
+          cancelAtPeriodEnd={teamData.organization?.cancelAtPeriodEnd ?? undefined}
+          billingInterval={teamData.organization?.billingInterval ?? undefined}
+          billingAmount={teamData.organization?.billingAmount ?? undefined}
           currentUserRole={currentUserRole}
         />
       </TabsContent>

@@ -15,8 +15,9 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function AlertProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, mutate } = useSWR('/api/alerts/count', fetcher, {
-    refreshInterval: 30000, // Refresh every 30 seconds
+    refreshInterval: 5000, // Refresh every 5 seconds for faster updates
     revalidateOnFocus: true,
+    revalidateOnReconnect: true,
   });
 
   const activeAlertCount = data?.count || 0;

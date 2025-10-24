@@ -73,25 +73,12 @@ export function BillingTab({ currentPlan, subscriptionStatus, subscriptionEndDat
     }
   }
 
-  const plans = [
-    {
-      key: 'free',
-      ...STRIPE_PLANS.free,
-    },
-    {
-      key: pricingInterval === 'month' ? 'starter_monthly' : 'starter_yearly',
-      ...STRIPE_PLANS[pricingInterval === 'month' ? 'starter_monthly' : 'starter_yearly'],
-    },
-    {
-      key: pricingInterval === 'month' ? 'pro_monthly' : 'pro_yearly',
-      ...STRIPE_PLANS[pricingInterval === 'month' ? 'pro_monthly' : 'pro_yearly'],
-    },
-  ];
+
 
   return (
     <div className="space-y-6">
       {/* Current Plan Status */}
-      <Card>
+      <Card className="border-border bg-card shadow-sm">
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
           <div>
             <CardTitle>Current Plan</CardTitle>
@@ -120,122 +107,241 @@ export function BillingTab({ currentPlan, subscriptionStatus, subscriptionEndDat
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-baseline gap-3">
-                <p className="text-2xl font-bold">{currentPlan || 'Free'}</p>
-                {billingAmount && billingInterval && (
-                  <p className="text-lg text-muted-foreground">
-                    ${(billingAmount / 100).toFixed(0)}/{billingInterval}
-                  </p>
-                )}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-baseline gap-3">
+                  <p className="text-2xl font-bold">{currentPlan || 'Free'}</p>
+                  {billingAmount && billingInterval && (
+                    <p className="text-lg text-muted-foreground">
+                      ${(billingAmount / 100).toFixed(0)}/{billingInterval}
+                    </p>
+                  )}
+                </div>
+                <div className="mt-1 space-y-1">
+                  {/* Active and renewing - show next billing */}
+                  {subscriptionStatus === 'active' && !cancelAtPeriodEnd && subscriptionEndDate && (
+                    <p className="text-sm text-muted-foreground">
+                      Next billing: {new Date(subscriptionEndDate).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  )}
+                  
+                  {/* Canceled but still active - show expiry */}
+                  {subscriptionStatus === 'active' && cancelAtPeriodEnd && subscriptionEndDate && (
+                    <p className="text-sm text-muted-foreground">
+                      Active until {new Date(subscriptionEndDate).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="mt-1 space-y-1">
-                {/* Active and renewing - show next billing */}
-                {subscriptionStatus === 'active' && !cancelAtPeriodEnd && subscriptionEndDate && (
-                  <p className="text-sm text-muted-foreground">
-                    Next billing: {new Date(subscriptionEndDate).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </p>
-                )}
-                
-                {/* Canceled but still active - show expiry */}
-                {subscriptionStatus === 'active' && cancelAtPeriodEnd && subscriptionEndDate && (
-                  <p className="text-sm text-muted-foreground">
-                    Active until {new Date(subscriptionEndDate).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </p>
-                )}
-              </div>
+              {canManageBilling && subscriptionStatus && (
+                <Button 
+                  onClick={handleManageSubscription}
+                  disabled={isLoading === 'portal'}
+                >
+                  {isLoading === 'portal' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Manage Subscription
+                </Button>
+              )}
             </div>
-            {canManageBilling && subscriptionStatus && (
-              <Button 
-                onClick={handleManageSubscription}
-                disabled={isLoading === 'portal'}
-              >
-                {isLoading === 'portal' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Manage Subscription
-              </Button>
-            )}
+
+            {/* What's included section */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-semibold mb-3">What&apos;s included</h4>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {(() => {
+                  const planKey = currentPlan?.toLowerCase() === 'starter' 
+                    ? (billingInterval === 'year' ? 'starter_yearly' : 'starter_monthly')
+                    : currentPlan?.toLowerCase() === 'pro'
+                    ? (billingInterval === 'year' ? 'pro_yearly' : 'pro_monthly')
+                    : 'free';
+                  
+                  return STRIPE_PLANS[planKey as keyof typeof STRIPE_PLANS].features.map((feature, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <span className="text-sm text-muted-foreground">{feature}</span>
+                    </li>
+                  ));
+                })()}
+              </ul>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Billing Interval Toggle */}
-      <div className="flex justify-center">
-        <div className="inline-flex rounded-lg border p-1">
-          <button
-            onClick={() => setPricingInterval('month')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              pricingInterval === 'month'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Monthly
-          </button>
-          <button
-            onClick={() => setPricingInterval('year')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              pricingInterval === 'year'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Yearly
-            <span className="ml-1 text-xs">(Save 17%)</span>
-          </button>
-        </div>
-      </div>
+      {/* Upgrade Cards */}
+      {(() => {
+        const currentPlanName = currentPlan?.toLowerCase() || 'free';
+        
+        if (currentPlanName === 'pro') return null;
 
-      {/* Pricing Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {plans.map((plan) => (
-          <Card key={plan.priceId} className="flex flex-col">
-            <CardHeader>
-              <CardTitle>{plan.name}</CardTitle>
-              <CardDescription>
-                <span className="text-3xl font-bold">${plan.price}</span>
-                {plan.interval !== 'one-time' && (
-                  <span className="text-muted-foreground">/{plan.interval}</span>
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1">
-              <ul className="space-y-2">
-                {plan.features.map((feature, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <Check className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                    <span className="text-sm">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-            <CardContent className="pt-0">
-              <Button
-                className="w-full"
-                variant={plan.name === 'Pro' ? 'default' : 'outline'}
-                onClick={() => handleSubscribe(plan.priceId)}
-                disabled={!canManageBilling || isLoading === plan.priceId}
-              >
-                {isLoading === plan.priceId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {plan.price === 0 ? 'Current Plan' : 'Subscribe'}
-              </Button>
-              {!canManageBilling && (
-                <p className="text-xs text-muted-foreground text-center mt-2">
-                  Only owners and admins can manage billing
-                </p>
+        const starterKey = pricingInterval === 'month' ? 'starter_monthly' : 'starter_yearly';
+        const proKey = pricingInterval === 'month' ? 'pro_monthly' : 'pro_yearly';
+        const starterPlan = STRIPE_PLANS[starterKey as keyof typeof STRIPE_PLANS];
+        const proPlan = STRIPE_PLANS[proKey as keyof typeof STRIPE_PLANS];
+
+        const starterComparison = [
+          { label: 'Integrations', current: '1', next: '3' },
+          { label: 'Workspaces', current: '1', next: '3' },
+          { label: 'Slack notifications', current: 'No', next: 'Yes' },
+          { label: 'Web push notifications', current: 'No', next: 'Yes' },
+        ];
+
+        const proComparison = currentPlanName === 'free' ? [
+          { label: 'Integrations', current: '1', next: '10' },
+          { label: 'Workspaces', current: '1', next: '10' },
+          { label: 'Slack notifications', current: 'No', next: 'Yes' },
+          { label: 'Web push notifications', current: 'No', next: 'Yes' },
+        ] : [
+          { label: 'Integrations', current: '3', next: '10' },
+          { label: 'Workspaces', current: '3', next: '10' },
+        ];
+
+        return (
+          <div className="space-y-4">
+            {/* Billing Toggle */}
+            <div className="flex justify-center">
+              <div className="inline-flex rounded-lg border p-1">
+                <button
+                  onClick={() => setPricingInterval('month')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    pricingInterval === 'month'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setPricingInterval('year')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    pricingInterval === 'year'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Yearly
+                </button>
+              </div>
+            </div>
+
+            {/* Cards Grid */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Starter Card */}
+              {currentPlanName === 'free' && (
+                <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        Starter
+                      </CardTitle>
+                      <div className="text-right">
+                        {pricingInterval === 'year' && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-700 mb-1">
+                            Save {Math.round((1 - (starterPlan.price / (STRIPE_PLANS.starter_monthly.price * 12))) * 100)}%
+                          </Badge>
+                        )}
+                        <div className="text-2xl font-bold">${starterPlan.price}</div>
+                        <div className="text-sm text-muted-foreground">/{starterPlan.interval}</div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        {starterComparison.map((row, index) => (
+                          <div key={index} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                            <span className="text-sm">{row.label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">{row.current}</span>
+                              <span className="text-muted-foreground">→</span>
+                              <span className="text-sm font-semibold text-primary">{row.next}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {canManageBilling && (
+                        <Button 
+                          className="w-full"
+                          variant="outline"
+                          onClick={() => handleSubscribe(starterPlan.priceId)}
+                          disabled={isLoading === starterPlan.priceId}
+                        >
+                          {isLoading === starterPlan.priceId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Upgrade to Starter
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+
+              {/* Pro Card */}
+              <Card className={`border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 ${currentPlanName === 'starter' ? 'md:col-span-2' : ''}`}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      Pro
+                      <Badge className="bg-primary">Most Popular</Badge>
+                    </CardTitle>
+                    <div className="text-right">
+                      {pricingInterval === 'year' && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-700 mb-1">
+                          Save {Math.round((1 - (proPlan.price / (STRIPE_PLANS.pro_monthly.price * 12))) * 100)}%
+                        </Badge>
+                      )}
+                      <div className="text-2xl font-bold">${proPlan.price}</div>
+                      <div className="text-sm text-muted-foreground">/{proPlan.interval}</div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      {proComparison.map((row, index) => (
+                        <div key={index} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                          <span className="text-sm">{row.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">{row.current}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="text-sm font-semibold text-primary">{row.next}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {canManageBilling && (
+                      <Button 
+                        className="w-full"
+                        onClick={() => handleSubscribe(proPlan.priceId)}
+                        disabled={isLoading === proPlan.priceId}
+                      >
+                        {isLoading === proPlan.priceId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Upgrade to Pro
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {!canManageBilling && (
+              <p className="text-xs text-muted-foreground text-center">
+                Only owners and admins can upgrade the plan
+              </p>
+            )}
+          </div>
+        );
+      })()}
+
+
     </div>
   );
 }

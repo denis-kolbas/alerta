@@ -19,7 +19,7 @@ interface DailyEventsChartProps {
 export function DailyEventsChart({ integrationData, activeIntegrations }: DailyEventsChartProps) {
   const chartData = useMemo(() => {
     // Group by date
-    const grouped: Record<string, unknown> = {};
+    const grouped: Record<string, Record<string, unknown>> = {};
     
     integrationData.forEach(item => {
       const date = new Date(item.timestamp);
@@ -37,7 +37,7 @@ export function DailyEventsChart({ integrationData, activeIntegrations }: DailyE
     });
     
     return Object.values(grouped).sort((a, b) => 
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      new Date((a as { timestamp: string }).timestamp).getTime() - new Date((b as { timestamp: string }).timestamp).getTime()
     );
   }, [integrationData]);
 

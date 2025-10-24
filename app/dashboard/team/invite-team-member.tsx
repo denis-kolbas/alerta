@@ -27,7 +27,7 @@ export function InviteTeamMember() {
 
       if (result?.error) {
         toast.error(result.error);
-      } else if (result?.success) {
+      } else if ('success' in result && result.success) {
         toast.success(result.success);
         setEmail('');
         setRole('member');

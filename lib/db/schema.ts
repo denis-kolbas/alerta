@@ -167,6 +167,7 @@ export type NewInvitation = typeof invitations.$inferInsert;
 export type AlertNotification = typeof alertNotifications.$inferSelect;
 export type NewAlertNotification = typeof alertNotifications.$inferInsert;
 export type TeamDataWithMembers = Team & {
+  organization: Organization;
   organizationMembers: (OrganizationMember & {
     user: Pick<User, 'id' | 'name' | 'email'>;
   })[];

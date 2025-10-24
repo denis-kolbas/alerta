@@ -37,7 +37,23 @@ export default async function Alerts2Page() {
       )
     );
 
-  const alerts = await getAlerts({ teamId: team.id, limit: 1000 });
+  const alertsData = await getAlerts({ teamId: team.id, limit: 1000 });
+  
+  // Cast metadata to proper type and exclude clientId
+  const alerts = alertsData.map(({ clientId, ...alert }) => ({
+    id: alert.id,
+    brandName: alert.brandName,
+    eventName: alert.eventName,
+    ruleType: alert.ruleType,
+    severity: alert.severity,
+    message: alert.message,
+    metadata: (alert.metadata || {}) as Record<string, unknown>,
+    createdAt: alert.createdAt,
+    resolvedAt: alert.resolvedAt,
+    isResolved: alert.isResolved,
+    status: alert.status as 'active' | 'resolved' | 'dismissed' | undefined,
+    integrationName: alert.integrationName
+  }));
 
   // Get unique platforms
   const platforms = [...new Set(activeIntegrations.map(i => i.integrationName))];
@@ -54,21 +70,19 @@ export default async function Alerts2Page() {
             </p>
           </div>
 
-          <Card className="border-dashed">
-            <CardHeader className="text-center pb-4">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                <Plug className="h-8 w-8 text-muted-foreground" />
+          <Card className="border-border bg-card shadow-sm">
+            <CardContent className="py-12 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Plug className="h-8 w-8 text-primary" />
               </div>
-              <CardTitle>No active integrations</CardTitle>
-              <CardDescription>
+              <h3 className="text-lg font-semibold mb-2">No active integrations</h3>
+              <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
                 You don&apos;t have any active integrations. Let&apos;s connect your first one now to start monitoring your events.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center pb-8">
-              <Button asChild className="bg-[#ff4f00] hover:bg-[#e64700] text-white">
+              </p>
+              <Button asChild>
                 <Link href="/dashboard/integrations">
                   <Plus className="mr-1 h-4 w-4" />
-                  Connect
+                  Connect Integration
                 </Link>
               </Button>
             </CardContent>

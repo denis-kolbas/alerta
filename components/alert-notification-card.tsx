@@ -82,7 +82,7 @@ export function AlertNotificationCard({ alert, eventData, onResolve, onDismiss, 
         onStatusChange(alert.id, newStatus);
       }
       
-      // Refresh the global alert count
+      // Refresh the global alert count from server
       mutateAlertCount();
     }
     setIsLoading(false);

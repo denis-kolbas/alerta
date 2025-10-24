@@ -45,7 +45,7 @@ export function IntegrationCard({ integration, isConnected }: IntegrationCardPro
           {integration.href ? (
             isConnected ? (
               <Button 
-                className="w-full border-purple-600 text-purple-600 hover:bg-purple-50" 
+                className="w-full border-primary text-primary hover:bg-primary/10" 
                 variant="outline" 
                 asChild
               >

@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, ChevronLeft, ChevronRight, ChevronDown, X } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ChevronDown, X, CheckCircle2 } from 'lucide-react';
 import { AlertNotificationCard } from './alert-notification-card';
 import {
   DropdownMenu,
@@ -309,13 +309,16 @@ export function Alerts2Client({ alerts: initialAlerts, platforms }: Alerts2Clien
       {/* Alert Notifications */}
       <div className="space-y-4">
         {filteredAlerts.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
+          <Card className="border-border bg-card shadow-sm">
+            <CardContent className="py-12 flex flex-col items-center justify-center text-center">
               {selectedStatuses.length === 1 && selectedStatuses[0] === 'active' && selectedSeverities.length === 2 && selectedPlatforms.length === platforms.length && !searchTerm ? (
-                <div className="space-y-2">
-                  <p className="text-lg font-medium text-green-700">No active alerts</p>
-                  <p className="text-muted-foreground">Everything is working as intended. Sit back and relax.</p>
-                </div>
+                <>
+                  <div className="rounded-full p-2 text-primary bg-primary/10 mb-4">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-semibold leading-none tracking-tight text-gray-900 mb-2">No active alerts</h3>
+                  <p className="text-sm text-gray-600">Everything is working as intended. Sit back and relax.</p>
+                </>
               ) : (
                 <p className="text-muted-foreground">No alerts match your filters</p>
               )}

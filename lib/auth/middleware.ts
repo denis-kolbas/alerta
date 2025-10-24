@@ -21,7 +21,7 @@ export function validatedAction<S extends z.ZodType<any, any>, T>(
   return async (formData: FormData) => {
     const result = schema.safeParse(Object.fromEntries(formData));
     if (!result.success) {
-      const errors = result.error.errors;
+      const errors = result.error.issues;
       if (errors && errors.length > 0) {
         const firstError = errors[0];
         // Just return the message without the field name for cleaner UX
@@ -52,7 +52,7 @@ export function validatedActionWithUser<S extends z.ZodType<any, unknown>, T>(
 
     const result = schema.safeParse(Object.fromEntries(formData));
     if (!result.success) {
-      const errors = result.error.errors;
+      const errors = result.error.issues;
       if (errors && errors.length > 0) {
         const firstError = errors[0];
         // Just return the message without the field name for cleaner UX

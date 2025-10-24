@@ -23,7 +23,7 @@ export async function acceptInvitation(formData: FormData) {
   const result = acceptInvitationSchema.safeParse(rawData);
 
   if (!result.success) {
-    return { error: result.error.errors[0].message };
+    return { error: result.error.issues[0].message };
   }
 
   const { token, name, password } = result.data;

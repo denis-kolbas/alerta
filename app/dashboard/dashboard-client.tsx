@@ -6,10 +6,13 @@ import { AlertsDailyChart } from '@/components/alerts-daily-chart';
 import { AlertsSeverityPie } from '@/components/alerts-severity-pie';
 import { AlertsByPlatform } from '@/components/alerts-by-platform';
 import { PlatformScorecard } from '@/components/platform-scorecard';
+import { NotificationBanner } from '@/components/notification-banner';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, CheckCircle2, XCircle, AlertCircle, Plug } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { subDays } from 'date-fns';
+import { useAlertCount } from '@/lib/contexts/alert-context';
 
 type TimeRange = '7d' | '30d' | '90d';
 
@@ -39,6 +42,7 @@ interface DashboardClientProps {
 
 export function DashboardClient({ integrationData, activeIntegrations, recentAlerts, platformStats }: DashboardClientProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const { activeAlertCount } = useAlertCount();
 
   // Calculate platform scorecard data based on selected time range
   const platformScorecardData = useMemo(() => {
@@ -93,21 +97,31 @@ export function DashboardClient({ integrationData, activeIntegrations, recentAle
   if (activeIntegrations.length === 0) {
     return (
       <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="text-center space-y-4">
-              <h1 className="text-3xl font-bold tracking-tight">Welcome to Alerta</h1>
-              <p className="text-muted-foreground max-w-md">
-                Get started by connecting your first integration to monitor events and receive alerts.
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
+            <p className="text-muted-foreground mt-2">
+              Get started by connecting your first integration
+            </p>
+          </div>
+
+          <Card className="border-border bg-card shadow-sm">
+            <CardContent className="py-12 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Plug className="h-8 w-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">No active integrations</h3>
+              <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                You don&apos;t have any active integrations. Let&apos;s connect your first one now to start monitoring your events.
               </p>
-              <Button asChild size="lg" className="mt-4">
+              <Button asChild>
                 <Link href="/dashboard/integrations">
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-1 h-4 w-4" />
                   Connect Integration
                 </Link>
               </Button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -149,6 +163,36 @@ export function DashboardClient({ integrationData, activeIntegrations, recentAle
               />
             ))}
           </div>
+        )}
+
+        {/* Alert Status Banner */}
+        {activeAlertCount === 0 ? (
+          <NotificationBanner
+            icon={CheckCircle2}
+            title="All clear"
+            description="No active alerts. Everything is working as intended."
+            variant="neutral"
+          />
+        ) : (
+          <NotificationBanner
+            icon={activeAlertCount > 0 && recentAlerts.some(a => !a.isResolved && a.severity === 'critical') ? XCircle : AlertCircle}
+            title={activeAlertCount > 0 && recentAlerts.some(a => !a.isResolved && a.severity === 'critical') 
+              ? `${activeAlertCount} critical ${activeAlertCount === 1 ? 'alert' : 'alerts'} require attention`
+              : `${activeAlertCount} active ${activeAlertCount === 1 ? 'alert' : 'alerts'}`
+            }
+            description={activeAlertCount > 0 && recentAlerts.some(a => !a.isResolved && a.severity === 'critical')
+              ? "Critical issues detected that need immediate attention."
+              : "Review and resolve active alerts to keep your systems healthy."
+            }
+            variant="neutral"
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/dashboard/alerts-2">
+                  View Alerts
+                </Link>
+              </Button>
+            }
+          />
         )}
 
         <div className="flex items-center justify-between">

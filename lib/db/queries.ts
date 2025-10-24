@@ -1,6 +1,6 @@
 import { desc, and, eq, isNull, gte, inArray } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teams, users, clients, eventData, alerts, organizationMembers, organizations } from './schema';
+import { activityLogs, teams, users, clients, eventData, alerts, organizationMembers, organizations, TeamDataWithMembers } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 
@@ -39,8 +39,8 @@ export async function getUser() {
 export async function getTeamByStripeCustomerId(customerId: string) {
   const result = await db
     .select()
-    .from(teams)
-    .where(eq(teams.stripeCustomerId, customerId))
+    .from(organizations)
+    .where(eq(organizations.stripeCustomerId, customerId))
     .limit(1);
 
   return result.length > 0 ? result[0] : null;
@@ -216,11 +216,13 @@ export async function getTeamForUser() {
     ...team,
     organizationMembers: orgMembers.map(member => ({
       id: member.id,
+      userId: member.userId,
+      organizationId: member.organizationId,
       role: member.role,
       joinedAt: member.joinedAt,
       user: member.user
     }))
-  };
+  } as TeamDataWithMembers;
 }
 // Queries for your custom tables
 
@@ -278,18 +280,19 @@ export async function getRecentEventData(limit: number = 50) {
     .limit(limit);
 }
 
-export async function createClient(clientData: {
-  brandName: string;
-  brazeInstanceUrl?: string;
-  brazeApiKey?: string;
-}) {
-  const result = await db
-    .insert(clients)
-    .values(clientData)
-    .returning();
+// Deprecated - use direct db.insert(clients).values() with all required fields
+// export async function createClient(clientData: {
+//   brandName: string;
+//   brazeInstanceUrl?: string;
+//   brazeApiKey?: string;
+// }) {
+//   const result = await db
+//     .insert(clients)
+//     .values(clientData)
+//     .returning();
 
-  return result[0];
-}
+//   return result[0];
+// }
 
 export async function createEventData(eventDataItem: {
   brand: string;
@@ -392,16 +395,13 @@ export async function getUniqueEventNames(brand?: string, teamId?: number, integ
     }
   }
   
-  let query = db
+  const query = db
     .selectDistinct({ 
       eventName: eventData.eventName,
       integrationName: eventData.integrationName 
     })
-    .from(eventData);
-    
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions));
-  }
+    .from(eventData)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
   
   const result = await query;
   // Prefix event names with integration name
@@ -476,7 +476,7 @@ export async function getAlerts(options?: {
     conditions.push(eq(alerts.isResolved, options.isResolved));
   }
 
-  let query = db
+  const baseQuery = db
     .select({
       id: alerts.id,
       clientId: alerts.clientId,
@@ -494,17 +494,14 @@ export async function getAlerts(options?: {
     })
     .from(alerts)
     .leftJoin(clients, eq(alerts.clientId, clients.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(alerts.createdAt));
 
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions));
-  }
-
   if (options?.limit) {
-    query = query.limit(options.limit);
+    return await baseQuery.limit(options.limit);
   }
 
-  return await query;
+  return await baseQuery;
 }
 
 export async function getAlertById(id: number) {
@@ -557,21 +554,22 @@ export async function checkExistingAlert(
   return result.length > 0 ? result[0] : null;
 }
 
-export async function createAlert(alertData: {
-  brandName: string;
-  eventName: string;
-  ruleType: string;
-  severity: string;
-  message: string;
-  metadata?: any;
-}) {
-  const result = await db
-    .insert(alerts)
-    .values(alertData)
-    .returning();
+// Deprecated - use direct db.insert(alerts).values() with all required fields including clientId
+// export async function createAlert(alertData: {
+//   brandName: string;
+//   eventName: string;
+//   ruleType: string;
+//   severity: string;
+//   message: string;
+//   metadata?: any;
+// }) {
+//   const result = await db
+//     .insert(alerts)
+//     .values(alertData)
+//     .returning();
 
-  return result[0];
-}
+//   return result[0];
+// }
 
 export async function resolveAlert(id: number) {
   const result = await db

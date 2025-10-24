@@ -13,6 +13,7 @@ import {
 import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react';
 import { updateAlertStatus } from '@/app/dashboard/alerts/actions';
 import { IntegrationFavicon } from '@/lib/integrations';
+import { useAlertCount } from '@/lib/contexts/alert-context';
 import {
   Tooltip,
   TooltipContent,
@@ -69,12 +70,16 @@ const getSeverityBadgeClass = (severity: string) => {
 export function AlertsTable({ alerts, onAlertClick }: AlertsTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const { mutate: mutateAlertCount } = useAlertCount();
 
   const handleStatusChange = async (alertId: number, newStatus: string) => {
     const result = await updateAlertStatus(alertId, newStatus as 'active' | 'resolved' | 'dismissed');
     
     if (result.error) {
       console.error('Failed to update alert status:', result.error);
+    } else {
+      // Refresh the global alert count from server
+      mutateAlertCount();
     }
   };
 
