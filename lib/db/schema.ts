@@ -182,6 +182,9 @@ export const clients = pgTable('clients', {
   brazeApiKey: bytea('braze_api_key'), // Encrypted with pgp_sym_encrypt
   blacklistedEvents: jsonb('blacklisted_events').default([]), // Array of event names to exclude from monitoring
   isActive: boolean('is_active').default(true),
+  backfillCompleted: boolean('backfill_completed').default(false),
+  backfillStartedAt: timestamp('backfill_started_at'),
+  backfillCompletedAt: timestamp('backfill_completed_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
@@ -198,7 +201,7 @@ export const eventData = pgTable('event_data', {
   timestamp: timestamp('timestamp').notNull(),
   count: integer('count').notNull(),
 }, (table) => ({
-  uniqueEventData: sql`UNIQUE (brand, event_name, timestamp)`,
+  uniqueEventData: sql`UNIQUE (client_id, event_name, timestamp)`,
 }));
 
 export const alerts = pgTable('alerts', {

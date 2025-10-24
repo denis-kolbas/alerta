@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,8 @@ interface AlertsPageClientProps {
 }
 
 export function AlertsPageClient({ alerts, platforms }: AlertsPageClientProps) {
+  const searchParams = useSearchParams();
+  
   const [selectedEvent, setSelectedEvent] = useState<{
     eventName: string;
     integrationName: string;
@@ -48,11 +51,20 @@ export function AlertsPageClient({ alerts, platforms }: AlertsPageClientProps) {
   const [eventData, setEventData] = useState<EventDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  // Filters - initialize from URL params
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
-  const [platformFilter, setPlatformFilter] = useState<string>('all');
+  const [platformFilter, setPlatformFilter] = useState<string>(searchParams.get('integration') || 'all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Update filters when URL params change
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const integration = searchParams.get('integration');
+    
+    if (status) setStatusFilter(status);
+    if (integration) setPlatformFilter(integration);
+  }, [searchParams]);
 
   // Calculate stats
   const stats = useMemo(() => {

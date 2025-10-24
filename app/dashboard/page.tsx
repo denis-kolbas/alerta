@@ -104,11 +104,42 @@ export default async function DashboardPage() {
             )
         : [{ count: 0 }];
 
+      // Count unique events
+      const uniqueEventsCount = integrationClientIds.length > 0
+        ? await db
+            .selectDistinct({ eventName: eventData.eventName })
+            .from(eventData)
+            .where(inArray(eventData.clientId, integrationClientIds))
+        : [];
+
+      // Get daily sparkline data (last 90 days - will be filtered client-side)
+      const sparklineData = integrationClientIds.length > 0
+        ? await db
+            .select({
+              date: sql<string>`DATE(${eventData.timestamp})`,
+              total: sql<number>`SUM(${eventData.count})`,
+            })
+            .from(eventData)
+            .where(
+              and(
+                inArray(eventData.clientId, integrationClientIds),
+                gte(eventData.timestamp, ninetyDaysAgo)
+              )
+            )
+            .groupBy(sql`DATE(${eventData.timestamp})`)
+            .orderBy(sql`DATE(${eventData.timestamp})`)
+        : [];
+
       return {
         platform: integration,
         lastSyncTime: lastSync[0]?.timestamp || null,
         activeAlerts: Number(activeAlertsCount[0]?.count || 0),
-        detailsUrl: `/dashboard/integrations?filter=${integration}`,
+        uniqueEvents: uniqueEventsCount.length,
+        sparklineData: sparklineData.map(d => ({
+          date: d.date,
+          total: Number(d.total),
+        })),
+        detailsUrl: `/dashboard/alerts?status=active&integration=${integration}`,
       };
     })
   );

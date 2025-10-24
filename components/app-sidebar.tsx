@@ -19,6 +19,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import useSWR from 'swr';
+import { useAlertCount } from '@/lib/contexts/alert-context';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -36,6 +37,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: user } = useSWR('/api/user', fetcher);
   const { data: teamsData } = useSWR('/api/team/list', fetcher);
+  const { activeAlertCount } = useAlertCount();
 
   const teams = teamsData?.teams || [];
   const currentTeamId = teamsData?.currentTeamId || null;
@@ -55,16 +57,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href}>
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navItems.map((item) => {
+                const isAlertPage = item.href === '/dashboard/alerts' || item.href === '/dashboard/alerts-2';
+                const showCount = isAlertPage && activeAlertCount > 0;
+                
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={pathname === item.href}>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                        {showCount && (
+                          <span className="ml-auto rounded-full bg-red-200 px-2 py-0.5 text-xs font-semibold text-red-800">
+                            {activeAlertCount}
+                          </span>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

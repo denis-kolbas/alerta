@@ -62,6 +62,18 @@ export function Alerts2Client({ alerts: initialAlerts, platforms }: Alerts2Clien
 
 
 
+  // Count alerts by status
+  const statusCounts = useMemo(() => {
+    const counts = { active: 0, resolved: 0, dismissed: 0 };
+    alerts.forEach(alert => {
+      const alertStatus = alert.status || (alert.isResolved ? 'resolved' : 'active');
+      if (alertStatus in counts) {
+        counts[alertStatus as keyof typeof counts]++;
+      }
+    });
+    return counts;
+  }, [alerts]);
+
   // Filter alerts
   const filteredAlerts = useMemo(() => {
     return alerts.filter(alert => {
@@ -168,158 +180,129 @@ export function Alerts2Client({ alerts: initialAlerts, platforms }: Alerts2Clien
             className="pl-9 bg-background"
           />
         </div>
-        
-        {/* Status Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full md:w-[150px] justify-between bg-background">
-              <div className="flex items-center gap-2">
-                {selectedStatuses.length > 0 && selectedStatuses.length < 3 && (
-                  <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                    {selectedStatuses.length}
-                  </span>
-                )}
-                <span>Status</span>
-              </div>
-              <ChevronDown className="h-4 w-4 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[200px]">
-            <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" onClick={() => {
-              const checked = !selectedStatuses.includes('active');
-              setSelectedStatuses(prev =>
-                checked ? [...prev, 'active'] : prev.filter(s => s !== 'active')
-              );
-            }}>
-              <Checkbox 
-                checked={selectedStatuses.includes('active')}
-                className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
-              />
-              <span className="text-sm">Active</span>
-            </div>
-            <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" onClick={() => {
-              const checked = !selectedStatuses.includes('resolved');
-              setSelectedStatuses(prev =>
-                checked ? [...prev, 'resolved'] : prev.filter(s => s !== 'resolved')
-              );
-            }}>
-              <Checkbox 
-                checked={selectedStatuses.includes('resolved')}
-                className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
-              />
-              <span className="text-sm">Resolved</span>
-            </div>
-            <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" onClick={() => {
-              const checked = !selectedStatuses.includes('dismissed');
-              setSelectedStatuses(prev =>
-                checked ? [...prev, 'dismissed'] : prev.filter(s => s !== 'dismissed')
-              );
-            }}>
-              <Checkbox 
-                checked={selectedStatuses.includes('dismissed')}
-                className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
-              />
-              <span className="text-sm">Dismissed</span>
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
 
-        {/* Severity Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full md:w-[150px] justify-between bg-background">
-              <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Status</span>
+          <div className="inline-flex rounded-md shadow-sm">
+            {['active', 'resolved', 'dismissed'].map((status, index) => {
+              const count = statusCounts[status as keyof typeof statusCounts];
+              return (
+                <Button
+                  key={status}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const checked = !selectedStatuses.includes(status);
+                    setSelectedStatuses(prev =>
+                      checked ? [...prev, status] : prev.filter(s => s !== status)
+                    );
+                  }}
+                  className={`
+                    ${index === 0 ? 'rounded-r-none' : index === 2 ? 'rounded-l-none -ml-px' : 'rounded-none -ml-px'}
+                    ${selectedStatuses.includes(status) ? 'bg-gray-800 hover:bg-gray-900 text-white hover:text-white border-gray-800' : ''}
+                  `}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  <span className="ml-1.5 text-xs opacity-60">{count}</span>
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Severity</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
                 {selectedSeverities.length > 0 && selectedSeverities.length < 2 && (
                   <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
                     {selectedSeverities.length}
                   </span>
                 )}
-                <span>Severity</span>
+                <span>All</span>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[200px]">
+              <DropdownMenuLabel>Filter by Severity</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" onClick={() => {
+                const checked = !selectedSeverities.includes('critical');
+                setSelectedSeverities(prev =>
+                  checked ? [...prev, 'critical'] : prev.filter(s => s !== 'critical')
+                );
+              }}>
+                <Checkbox 
+                  checked={selectedSeverities.includes('critical')}
+                  className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
+                />
+                <span className="text-sm">Critical</span>
               </div>
-              <ChevronDown className="h-4 w-4 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[200px]">
-            <DropdownMenuLabel>Filter by Severity</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" onClick={() => {
-              const checked = !selectedSeverities.includes('critical');
-              setSelectedSeverities(prev =>
-                checked ? [...prev, 'critical'] : prev.filter(s => s !== 'critical')
-              );
-            }}>
-              <Checkbox 
-                checked={selectedSeverities.includes('critical')}
-                className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
-              />
-              <span className="text-sm">Critical</span>
-            </div>
-            <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" onClick={() => {
-              const checked = !selectedSeverities.includes('warning');
-              setSelectedSeverities(prev =>
-                checked ? [...prev, 'warning'] : prev.filter(s => s !== 'warning')
-              );
-            }}>
-              <Checkbox 
-                checked={selectedSeverities.includes('warning')}
-                className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
-              />
-              <span className="text-sm">Warning</span>
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" onClick={() => {
+                const checked = !selectedSeverities.includes('warning');
+                setSelectedSeverities(prev =>
+                  checked ? [...prev, 'warning'] : prev.filter(s => s !== 'warning')
+                );
+              }}>
+                <Checkbox 
+                  checked={selectedSeverities.includes('warning')}
+                  className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
+                />
+                <span className="text-sm">Warning</span>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-        {/* Platform Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full md:w-[150px] justify-between bg-background">
-              <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Platform</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
                 {selectedPlatforms.length > 0 && selectedPlatforms.length < platforms.length && (
                   <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
                     {selectedPlatforms.length}
                   </span>
                 )}
-                <span>Platform</span>
-              </div>
-              <ChevronDown className="h-4 w-4 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[200px]">
-            <DropdownMenuLabel>Filter by Platform</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {platforms.map(platform => (
-              <div 
-                key={platform}
-                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" 
-                onClick={() => {
-                  const checked = !selectedPlatforms.includes(platform);
-                  setSelectedPlatforms(prev =>
-                    checked ? [...prev, platform] : prev.filter(p => p !== platform)
-                  );
-                }}
-              >
-                <Checkbox 
-                  checked={selectedPlatforms.includes(platform)}
-                  className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
-                />
-                <span className="text-sm">{platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
-              </div>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <span>All</span>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[200px]">
+              <DropdownMenuLabel>Filter by Platform</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {platforms.map(platform => (
+                <div 
+                  key={platform}
+                  className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent rounded-sm" 
+                  onClick={() => {
+                    const checked = !selectedPlatforms.includes(platform);
+                    setSelectedPlatforms(prev =>
+                      checked ? [...prev, platform] : prev.filter(p => p !== platform)
+                    );
+                  }}
+                >
+                  <Checkbox 
+                    checked={selectedPlatforms.includes(platform)}
+                    className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
+                  />
+                  <span className="text-sm">{platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-        {/* Clear Filters Button - always rendered to prevent layout shift */}
         <Button 
           variant="ghost" 
           size="sm"
           onClick={handleClearFilters}
           disabled={isDefaultFilters}
-          className={`w-full md:w-auto transition-opacity ${isDefaultFilters ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+          className={`transition-opacity ${isDefaultFilters ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         >
           <X className="h-4 w-4 mr-1" />
-          Clear Filters
+          Clear
         </Button>
       </div>
 

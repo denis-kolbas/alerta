@@ -31,6 +31,8 @@ interface DashboardClientProps {
     platform: string;
     lastSyncTime: Date | null;
     activeAlerts: number;
+    uniqueEvents: number;
+    sparklineData: Array<{ date: string; total: number }>;
     detailsUrl: string;
   }>;
 }
@@ -60,18 +62,30 @@ export function DashboardClient({ integrationData, activeIntegrations, recentAle
       );
       const previousEventCount = previousPeriodEvents.reduce((sum, e) => sum + Number(e.totalCount), 0);
 
-      // Calculate percent change
+      // Count unique days with data in previous period to check data sufficiency
+      const previousPeriodDays = new Set(
+        previousPeriodEvents.map(e => new Date(e.timestamp).toDateString())
+      ).size;
+      const dataCompleteness = previousPeriodDays / days;
+
+      // Calculate percent change only if we have sufficient data (at least 50% of days)
       let percentChange: number | null = null;
-      if (previousEventCount > 0) {
+      if (dataCompleteness >= 0.5 && previousEventCount > 0) {
         percentChange = ((eventCount - previousEventCount) / previousEventCount) * 100;
-      } else if (eventCount > 0) {
-        percentChange = 100;
       }
+
+      // Filter sparkline data for current time range
+      const filteredSparklineData = stat.sparklineData.filter(
+        d => new Date(d.date) >= startDate
+      );
 
       return {
         ...stat,
         eventCount,
         percentChange,
+        uniqueEvents: stat.uniqueEvents,
+        sparklineData: filteredSparklineData,
+        timeRange,
       };
     });
   }, [platformStats, integrationData, timeRange]);
@@ -128,6 +142,9 @@ export function DashboardClient({ integrationData, activeIntegrations, recentAle
                 eventCount={platform.eventCount}
                 percentChange={platform.percentChange}
                 activeAlerts={platform.activeAlerts}
+                uniqueEvents={platform.uniqueEvents}
+                sparklineData={platform.sparklineData}
+                timeRange={timeRange}
                 detailsUrl={platform.detailsUrl}
               />
             ))}

@@ -134,7 +134,7 @@ export function TeamSwitcher({ teams, currentTeamId, organizationRole, onTeamCha
                 <Button
                   variant="outline"
                   role="combobox"
-                  className={state === 'collapsed' ? 'h-8 w-8 p-0' : 'w-full justify-start gap-2'}
+                  className={state === 'collapsed' ? 'h-8 w-8 p-0' : 'w-full justify-start gap-2 h-14'}
                   disabled={isLoading}
                 >
                   <Avatar className="h-6 w-6 rounded-md">

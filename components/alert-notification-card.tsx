@@ -4,13 +4,14 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, X, RotateCcw } from 'lucide-react';
+import { CheckCircle2, X, RotateCcw, Trash2 } from 'lucide-react';
 import { IntegrationFavicon, getIntegrationColor } from '@/lib/integrations';
 import { formatDistanceToNow } from 'date-fns';
 import { updateAlertStatus } from '@/app/dashboard/alerts/actions';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { format } from 'date-fns';
+import { useAlertCount } from '@/lib/contexts/alert-context';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +50,7 @@ interface AlertNotificationCardProps {
 export function AlertNotificationCard({ alert, eventData, onResolve, onDismiss, onStatusChange }: AlertNotificationCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(alert.status || 'active');
+  const { mutate: mutateAlertCount } = useAlertCount();
 
   // Get integration brand color for chart
   const integrationColor = useMemo(() => {
@@ -79,6 +81,9 @@ export function AlertNotificationCard({ alert, eventData, onResolve, onDismiss, 
       if (onStatusChange) {
         onStatusChange(alert.id, newStatus);
       }
+      
+      // Refresh the global alert count
+      mutateAlertCount();
     }
     setIsLoading(false);
   };
@@ -131,21 +136,21 @@ export function AlertNotificationCard({ alert, eventData, onResolve, onDismiss, 
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs hover:bg-accent"
                   onClick={() => handleStatusChange('resolved')}
                   disabled={isLoading}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
                   Resolve
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs hover:bg-accent"
                   onClick={() => handleStatusChange('dismissed')}
                   disabled={isLoading}
                 >
-                  <X className="h-3.5 w-3.5 mr-1" />
+                  <X className="h-4 w-4 mr-2 text-gray-600" />
                   Dismiss
                 </Button>
               </>
